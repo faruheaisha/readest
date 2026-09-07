@@ -211,6 +211,106 @@ const migrations: Record<SchemaType, MigrationEntry[]> = {
       `,
     },
   ],
+  learning: [
+    {
+      name: '2026090701_learning_core',
+      sql: `
+        CREATE TABLE IF NOT EXISTS learning_objects (
+          id TEXT PRIMARY KEY,
+          kind TEXT NOT NULL,
+          text TEXT NOT NULL,
+          normalized_text TEXT NOT NULL,
+          language TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          UNIQUE (kind, language, normalized_text)
+        );
+
+        CREATE TABLE IF NOT EXISTS learning_occurrences (
+          id TEXT PRIMARY KEY,
+          learning_object_id TEXT NOT NULL REFERENCES learning_objects(id) ON DELETE CASCADE,
+          content_id TEXT NOT NULL,
+          content_version_id TEXT NOT NULL,
+          locator_json TEXT NOT NULL,
+          locator_key TEXT NOT NULL,
+          context_text TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          UNIQUE (learning_object_id, locator_key)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_occurrences_object
+        ON learning_occurrences (learning_object_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS learning_review_items (
+          id TEXT PRIMARY KEY,
+          learning_object_id TEXT NOT NULL UNIQUE REFERENCES learning_objects(id) ON DELETE CASCADE,
+          policy_id TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS learning_review_events (
+          id TEXT PRIMARY KEY,
+          review_item_id TEXT NOT NULL REFERENCES learning_review_items(id) ON DELETE CASCADE,
+          attempt_key TEXT NOT NULL UNIQUE,
+          rating TEXT NOT NULL,
+          occurred_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_review_events_item
+        ON learning_review_events (review_item_id, occurred_at);
+
+        CREATE TABLE IF NOT EXISTS learning_schedules (
+          review_item_id TEXT PRIMARY KEY REFERENCES learning_review_items(id) ON DELETE CASCADE,
+          due_at INTEGER NOT NULL,
+          stability REAL NOT NULL,
+          difficulty REAL NOT NULL,
+          scheduled_days INTEGER NOT NULL,
+          state TEXT NOT NULL,
+          elapsed_days INTEGER,
+          learning_steps INTEGER,
+          reps INTEGER,
+          lapses INTEGER,
+          last_review_at INTEGER
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_schedules_due
+        ON learning_schedules (due_at);
+
+        CREATE TABLE IF NOT EXISTS learning_events (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          occurred_at INTEGER NOT NULL,
+          actor_id TEXT,
+          aggregate_id TEXT,
+          properties_json TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_events_occurred
+        ON learning_events (occurred_at);
+
+        CREATE TABLE IF NOT EXISTS learning_today_plans (
+          id TEXT PRIMARY KEY,
+          date TEXT NOT NULL UNIQUE,
+          generated_at INTEGER NOT NULL,
+          items_json TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS learning_annotations (
+          id TEXT PRIMARY KEY,
+          content_id TEXT NOT NULL,
+          content_version_id TEXT NOT NULL,
+          locator_json TEXT NOT NULL,
+          motivation TEXT NOT NULL,
+          body TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_annotations_content
+        ON learning_annotations (content_id, updated_at);
+      `,
+    },
+  ],
   reedy: [
     {
       name: '2026052601_reedy_init',

@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { PiUserCircle, PiUserCircleCheck, PiGear } from 'react-icons/pi';
+import { PiUserCircle, PiUserCircleCheck, PiGear, PiStudent } from 'react-icons/pi';
 import { PiSun, PiMoon } from 'react-icons/pi';
 import { TbSunMoon } from 'react-icons/tb';
 import { MdCloudSync, MdSync, MdSyncProblem, MdOutlineSensors } from 'react-icons/md';
@@ -227,6 +227,11 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
     setSettingsDialogOpen(true);
   };
 
+  const openLearningToday = () => {
+    router.push('/today');
+    setIsDropdownOpen?.(false);
+  };
+
   const handleSetSavedBookCoverForLockScreen = async () => {
     if (!(await requestStoragePermission())) return;
 
@@ -366,6 +371,8 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
       ) : (
         <MenuItem label={_('Sign In')} Icon={PiUserCircle} onClick={handleUserLogin}></MenuItem>
       )}
+
+      <MenuItem label={_('Learning Today')} Icon={PiStudent} onClick={openLearningToday} />
 
       {isTauriAppPlatform() && (
         <MenuItem

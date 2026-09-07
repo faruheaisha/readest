@@ -428,6 +428,9 @@ importers:
       tinycolor2:
         specifier: ^1.6.0
         version: 1.6.0
+      ts-fsrs:
+        specifier: ^5.4.2
+        version: 5.4.2
       uuid:
         specifier: '>=14.0.0'
         version: 14.0.0
@@ -8156,6 +8159,10 @@ packages:
   ts-dedent@2.2.0:
     resolution: {integrity: sha512-q5W7tVM71e2xjHZTlgfTDoPF/SmqKG5hddq9SzR49CH2hayqRKJtQ4mtRlSxKaJlR/+9rEM+mnBHf7I2/BQcpQ==}
     engines: {node: '>=6.10'}
+
+  ts-fsrs@5.4.2:
+    resolution: {integrity: sha512-z4qop4pzTcyTzuJ566d9EaX/4bZZzhYfeaPImfVr+xcYT65c5oBgFDijUhCE/D+C78eaolHIhKRZ04/RwF+v2g==}
+    engines: {node: '>=20.0.0'}
 
   ts-loader@9.5.7:
     resolution: {integrity: sha512-/ZNrKgA3K3PtpMYOC71EeMWIloGw3IYEa5/t1cyz2r5/PyUwTXGzYJvcD3kfUvmhlfpz1rhV8B2O6IVTQ0avsg==}
@@ -17263,6 +17270,8 @@ snapshots:
   trough@2.2.0: {}
 
   ts-dedent@2.2.0: {}
+
+  ts-fsrs@5.4.2: {}
 
   ts-loader@9.5.7(typescript@5.9.3)(webpack@5.106.2):
     dependencies:

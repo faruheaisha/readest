@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { RiDeleteBinLine } from 'react-icons/ri';
+import { PiStudent } from 'react-icons/pi';
 
 import * as CFI from 'foliate-js/epubcfi.js';
 import { useEnv } from '@/context/EnvContext';
@@ -118,6 +119,9 @@ import {
   parseReadEraBackup,
 } from '@/utils/readera';
 import { convertReadEraDocToBookNotes } from '@/services/annotation/providers/readera';
+import { LearningContextPanel } from '@/components/learning/LearningContextPanel';
+import { createReadestSelectionContext } from '@/learning/adapters';
+import type { SelectionContext } from '@/learning/domain';
 
 const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
   bookKey,
@@ -179,6 +183,8 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
   const [showDictionaryPopup, setShowDictionaryPopup] = useState(false);
   const [showDeepLPopup, setShowDeepLPopup] = useState(false);
   const [showProofreadPopup, setShowProofreadPopup] = useState(false);
+  const [showLearningPanel, setShowLearningPanel] = useState(false);
+  const [learningSelection, setLearningSelection] = useState<SelectionContext | null>(null);
   const [trianglePosition, setTrianglePosition] = useState<Position>();
   const [annotPopupPosition, setAnnotPopupPosition] = useState<Position>();
   const [dictPopupPosition, setDictPopupPosition] = useState<Position>();
@@ -227,7 +233,11 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
   const pendingWordLensDictRef = useRef(false);
 
   const showingPopup =
-    showAnnotPopup || showDictionaryPopup || showDeepLPopup || showProofreadPopup;
+    showAnnotPopup ||
+    showDictionaryPopup ||
+    showDeepLPopup ||
+    showProofreadPopup ||
+    showLearningPanel;
 
   const popupPadding = useResponsiveSize(10);
   const trianglePadding = popupPadding * 2 + 6;
@@ -254,7 +264,7 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
   const highlightOptionsAvailable = shouldShowHighlightOptions(toolbarToolTypes, selection ?? null);
   const annotPopupWidth = highlightOptionsAvailable
     ? annotPopupMaxWidth
-    : Math.min(Math.max(toolbarToolTypes.length, 1) * annotPopupToolSize, annotPopupMaxWidth);
+    : Math.min(Math.max(toolbarToolTypes.length + 1, 1) * annotPopupToolSize, annotPopupMaxWidth);
   const annotPopupHeight = useResponsiveSize(44);
   const androidSelectionHandlerHeight = 0;
 
@@ -345,6 +355,8 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
       setShowDictionaryPopup(false);
       setShowDeepLPopup(false);
       setShowProofreadPopup(false);
+      setShowLearningPanel(false);
+      setLearningSelection(null);
       setEditingAnnotation(null);
       setNoteEditorTarget(null);
     }, 500),
@@ -1630,6 +1642,26 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
     setShowDeepLPopup(true);
   };
 
+  const handleLearning = () => {
+    if (!selection?.text) return;
+    setLearningSelection(
+      createReadestSelectionContext({
+        book: bookData.book,
+        bookKey,
+        selection: {
+          text: selection.text,
+          ...(selection.cfi ? { cfi: selection.cfi } : {}),
+          ...(selection.href ? { href: selection.href } : {}),
+          page: selection.page,
+        },
+        progress,
+      }),
+    );
+    setShowAnnotPopup(false);
+    void suppressNativeSelectionHandles();
+    setShowLearningPanel(true);
+  };
+
   // `oneTime` is required rather than defaulted: it decides whether this reads
   // the selection and stops or starts an open-ended session from it, and every
   // entry point here means the former. Defaulting it silently turned Ctrl/Cmd+R
@@ -2343,9 +2375,12 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
     }
   };
 
-  const toolButtons = toolbarToolTypes
-    .map(buildToolButton)
-    .filter((button): button is NonNullable<typeof button> => button !== null);
+  const toolButtons = [
+    ...toolbarToolTypes
+      .map(buildToolButton)
+      .filter((button): button is NonNullable<typeof button> => button !== null),
+    { tooltipText: _('Learn'), Icon: PiStudent, onClick: handleLearning },
+  ];
 
   // The lookup popups never deselect (handleDictionary / handleTranslation /
   // handleProofread only flip popup flags), so a genuine selection is still
@@ -2370,7 +2405,11 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
   // toolbar: hide them while any of those is open, and let them come back with
   // the toolbar (or go with the dismiss).
   const overlaySurfaceOpen =
-    showDictionaryPopup || showDeepLPopup || showProofreadPopup || !!noteEditorTarget;
+    showDictionaryPopup ||
+    showDeepLPopup ||
+    showProofreadPopup ||
+    showLearningPanel ||
+    !!noteEditorTarget;
 
   // Below `sm` (or short landscape) the note editor is a bottom sheet rather
   // than a popup pinned to the selection: an anchored editor would sit under
@@ -2385,6 +2424,20 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
   return (
     <div ref={containerRef} role='toolbar' tabIndex={-1}>
       <PageTurnHint bookKey={bookKey} contentInsets={contentInsets} hint={turnHint} />
+      {showLearningPanel && learningSelection && (
+        <LearningContextPanel
+          selection={learningSelection}
+          onDictionary={() => {
+            setShowLearningPanel(false);
+            handleDictionary();
+          }}
+          onTranslation={() => {
+            setShowLearningPanel(false);
+            handleTranslation();
+          }}
+          onClose={handleDismissPopupShowToolbar}
+        />
+      )}
       {showDictionaryPopup &&
         (() => {
           // Below `sm` (or short landscape) we present the dictionary as a
