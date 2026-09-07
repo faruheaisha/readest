@@ -1,4 +1,4 @@
-import type { SelectionContext } from '@/learning/domain';
+import type { Locator, SelectionContext } from '@/learning/domain';
 
 interface ReadestBookIdentity {
   hash: string;
@@ -59,3 +59,14 @@ export const createReadestSelectionContext = ({
     },
   };
 };
+
+export const getReadestReturnTarget = ({
+  contentId,
+  locator,
+}: {
+  contentId: string;
+  locator: Locator;
+}): { bookHash: string; location: string } => ({
+  bookHash: contentId,
+  location: locator.locations.cfi ?? locator.href,
+});

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createReadestSelectionContext } from '@/learning/adapters/readest-selection';
+import {
+  createReadestSelectionContext,
+  getReadestReturnTarget,
+} from '@/learning/adapters/readest-selection';
 
 describe('Readest selection adapter', () => {
   it('preserves the content identity and stable reader locator', () => {
@@ -56,5 +59,23 @@ describe('Readest selection adapter', () => {
     expect(context.contentVersionId).toBe('transient-view:local');
     expect(context.locator.locations).toEqual({});
     expect(context.locator.locations).not.toHaveProperty('cfi');
+  });
+
+  it('prefers a CFI and falls back to the locator href when returning to source', () => {
+    expect(
+      getReadestReturnTarget({
+        contentId: 'book-hash',
+        locator: {
+          href: 'chapter-2.xhtml',
+          locations: { cfi: 'epubcfi(/6/4!/4/2)' },
+        },
+      }),
+    ).toEqual({ bookHash: 'book-hash', location: 'epubcfi(/6/4!/4/2)' });
+    expect(
+      getReadestReturnTarget({
+        contentId: 'pdf-hash',
+        locator: { href: 'page-7', locations: {} },
+      }),
+    ).toEqual({ bookHash: 'pdf-hash', location: 'page-7' });
   });
 });

@@ -43,13 +43,14 @@ The first implementation slice includes:
 - a Learn action in the existing reader toolbar;
 - responsive Context Panel, Today, Review, and Progress interfaces;
 - explicit Save versus Save & Practice behavior;
+- return-to-source navigation through Readest's existing reader route and saved locator;
 - English and Simplified Chinese UI copy.
 
 The Context Panel delegates meaning and translation back to Readest's existing providers. It does not duplicate dictionary or translation engines.
 
 ## Not complete yet
 
-This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires AI provider routing/BYOK/quota, all four activity UIs, return-to-source deep links, replica-sync categories, email identity and guest migration, export/deletion, feedback/operator tooling, resource limits, and public-beta hardening.
+This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires AI provider routing/BYOK/quota, all four activity UIs, locator re-anchoring after source changes, replica-sync categories, email identity and guest migration, export/deletion, feedback/operator tooling, resource limits, and public-beta hardening.
 
 ## Verification
 
