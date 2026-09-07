@@ -5,13 +5,20 @@ import type { AppService } from '@/types/system';
 import { getMigrations } from '@/services/database/migrations';
 import { migrate } from '@/services/database/migrate';
 import type { DatabaseService } from '@/types/database';
-import { FsrsMemorySchedulerAdapter, ReadestLearningDatabaseAdapter } from '../adapters';
-import { LearningOrchestrator } from '../application';
+import {
+  createActivityEngines,
+  FsrsMemorySchedulerAdapter,
+  ReadestLearningDatabaseAdapter,
+} from '../adapters';
+import { ActivityPracticeService, LearningOrchestrator } from '../application';
+import { ActivityRegistry } from '../kernel';
 
 export interface LearningRuntime {
   database: DatabaseService;
   repository: ReadestLearningDatabaseAdapter;
   orchestrator: LearningOrchestrator;
+  activities: ActivityRegistry;
+  practice: ActivityPracticeService;
 }
 
 const runtimes = new WeakMap<AppService, Promise<LearningRuntime>>();
@@ -21,14 +28,22 @@ export const createLearningRuntime = async (
 ): Promise<LearningRuntime> => {
   await migrate(database, getMigrations('learning'));
   const repository = new ReadestLearningDatabaseAdapter(database);
+  const activities = new ActivityRegistry();
+  for (const engine of createActivityEngines()) activities.registerEngine(engine);
   return {
     database,
     repository,
+    activities,
     orchestrator: new LearningOrchestrator({
       lexicon: repository,
       memory: repository,
       scheduler: new FsrsMemorySchedulerAdapter(),
       plans: repository,
+      events: repository,
+    }),
+    practice: new ActivityPracticeService({
+      registry: activities,
+      repository,
       events: repository,
     }),
   };

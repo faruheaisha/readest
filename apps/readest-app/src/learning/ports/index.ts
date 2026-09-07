@@ -2,6 +2,7 @@ import type {
   ActionDefinition,
   ActionExecution,
   ActivityAttempt,
+  ActivityKind,
   ActivityResult,
   ActivitySpec,
   Annotation,
@@ -64,6 +65,16 @@ export interface ActivityRepositoryPort {
   getSpec(id: string): Promise<ActivitySpec | null>;
   saveSpec(spec: ActivitySpec): Promise<void>;
   saveAttempt(attempt: ActivityAttempt, result: ActivityResult): Promise<void>;
+}
+
+export interface ActivityEnginePort {
+  readonly kind: ActivityKind;
+  createSpec(
+    id: string,
+    learningObject: SavedLearningObject,
+    occurrence?: Occurrence,
+  ): ActivitySpec;
+  evaluate(attempt: ActivityAttempt, spec: ActivitySpec): ActivityResult;
 }
 
 export interface MemoryRepositoryPort {

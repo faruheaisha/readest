@@ -1,11 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LearningShell, LearningState } from '@/components/learning/LearningShell';
 import { useEnv } from '@/context/EnvContext';
 import { useTranslation } from '@/hooks/useTranslation';
 import type {
+  ActivityKind,
+  ActivityResult,
+  ActivitySpec,
   Occurrence,
   ReviewItem,
   ReviewRating,
@@ -30,6 +33,8 @@ const ratings: readonly { rating: ReviewRating; label: string; className: string
   { rating: 'easy', label: 'Easy', className: 'btn-info' },
 ];
 
+const activityKinds: readonly ActivityKind[] = ['recognition', 'typing', 'spelling', 'cloze'];
+
 export default function ReviewPage() {
   const _ = useTranslation();
   const router = useRouter();
@@ -39,6 +44,11 @@ export default function ReviewPage() {
   const [revealed, setRevealed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [lastSource, setLastSource] = useState<Occurrence | null>(null);
+  const [activityKind, setActivityKind] = useState<ActivityKind>('cloze');
+  const [activitySpec, setActivitySpec] = useState<ActivitySpec | null>(null);
+  const [activityResult, setActivityResult] = useState<ActivityResult | null>(null);
+  const [response, setResponse] = useState('');
+  const [startedAt, setStartedAt] = useState(() => new Date());
 
   const load = useCallback(async () => {
     if (!runtime) return;
@@ -75,16 +85,46 @@ export default function ReviewPage() {
   }, [load]);
 
   const card = cards?.[0];
-  const cloze = useMemo(() => {
-    if (!card?.occurrence) return _('Recall this saved learning object.');
-    const escaped = card.learningObject.text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-    return card.occurrence.contextText.replace(new RegExp(escaped, 'iu'), '______');
-  }, [_, card]);
+
+  useEffect(() => {
+    if (!runtime || !card) {
+      setActivitySpec(null);
+      return;
+    }
+    let cancelled = false;
+    setActivitySpec(null);
+    setActivityResult(null);
+    setResponse('');
+    setRevealed(false);
+    setStartedAt(new Date());
+    void runtime.practice
+      .createSpec(activityKind, card.learningObject, card.occurrence)
+      .then((spec) => {
+        if (!cancelled) setActivitySpec(spec);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activityKind, card?.reviewItem.id, runtime]);
+
+  const checkActivity = async () => {
+    if (!runtime || !activitySpec || !response.trim() || activityResult) return;
+    const result = await runtime.practice.complete(activitySpec, response, startedAt);
+    setActivityResult(result);
+    setRevealed(true);
+  };
 
   const submit = async (rating: ReviewRating) => {
     if (!runtime || !card || submitting) return;
     setSubmitting(true);
     try {
+      if (activitySpec && activityKind === 'recognition' && !activityResult) {
+        await runtime.practice.complete(
+          activitySpec,
+          rating === 'good' || rating === 'easy' ? 'known' : 'missed',
+          startedAt,
+        );
+      }
       await runtime.orchestrator.submitReview(card.reviewItem.id, rating, crypto.randomUUID());
       setLastSource(card.occurrence ?? null);
       await load();
@@ -137,13 +177,77 @@ export default function ReviewPage() {
             <section className='border-base-300 bg-base-200/30 mx-auto max-w-2xl rounded-3xl border p-6 shadow-sm md:p-10'>
               <div className='flex items-center justify-between gap-4'>
                 <span className='text-primary text-xs font-semibold tracking-wider uppercase'>
-                  {_('Cloze')} · {_(card.learningObject.kind)}
+                  {_(activityKind)} · {_(card.learningObject.kind)}
                 </span>
                 <span className='text-base-content/45 text-sm'>
                   {cards.length} {_('due')}
                 </span>
               </div>
-              <p className='mt-8 text-xl leading-relaxed md:text-2xl'>{cloze}</p>
+              <div className='mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4'>
+                {activityKinds.map((kind) => (
+                  <button
+                    key={kind}
+                    type='button'
+                    aria-pressed={activityKind === kind}
+                    className={`btn btn-sm ${activityKind === kind ? 'btn-primary' : 'btn-ghost bg-base-200'}`}
+                    onClick={() => setActivityKind(kind)}
+                  >
+                    {_(kind)}
+                  </button>
+                ))}
+              </div>
+              {!activitySpec ? (
+                <p className='text-base-content/55 mt-8 text-center'>{_('Preparing activity…')}</p>
+              ) : (
+                <>
+                  <p className='mt-8 text-xl leading-relaxed md:text-2xl'>
+                    {activityKind === 'spelling'
+                      ? _('Listen and spell the saved item.')
+                      : activitySpec.prompt === 'Complete the saved item.'
+                        ? _('Complete the saved item.')
+                        : activitySpec.prompt}
+                  </p>
+                  {activityKind === 'spelling' && (
+                    <button
+                      type='button'
+                      className='btn btn-outline btn-sm mt-4'
+                      disabled={typeof window === 'undefined' || !('speechSynthesis' in window)}
+                      onClick={() => {
+                        const utterance = new SpeechSynthesisUtterance(activitySpec.answer);
+                        utterance.lang = card.learningObject.language;
+                        window.speechSynthesis.speak(utterance);
+                      }}
+                    >
+                      {_('Listen')}
+                    </button>
+                  )}
+                  {activityKind !== 'recognition' && !revealed && (
+                    <div className='mt-6 flex flex-col gap-3 sm:flex-row'>
+                      <input
+                        type='text'
+                        autoCapitalize='none'
+                        autoComplete='off'
+                        spellCheck={false}
+                        className='input input-bordered flex-1'
+                        value={response}
+                        aria-label={_('Your answer')}
+                        onChange={(event) => setResponse(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') void checkActivity();
+                        }}
+                      />
+                      <button
+                        type='button'
+                        className='btn btn-primary'
+                        disabled={!response.trim()}
+                        onClick={() => void checkActivity()}
+                      >
+                        {_('Check answer')}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
               {revealed ? (
                 <div className='mt-8'>
                   <div className='bg-base-100 border-base-300 rounded-2xl border p-5'>
@@ -151,6 +255,15 @@ export default function ReviewPage() {
                       {_('Answer')}
                     </p>
                     <p className='mt-2 text-2xl font-semibold'>{card.learningObject.text}</p>
+                    {activityResult && (
+                      <p
+                        className={`mt-3 text-sm font-medium ${activityResult.correct ? 'text-success' : 'text-warning'}`}
+                      >
+                        {activityResult.correct
+                          ? _('Correct')
+                          : _('Not quite—compare and try again later.')}
+                      </p>
+                    )}
                     {card.occurrence && (
                       <p className='text-base-content/60 mt-3 text-sm'>
                         {card.occurrence.contextText}
@@ -171,7 +284,7 @@ export default function ReviewPage() {
                     ))}
                   </div>
                 </div>
-              ) : (
+              ) : activityKind === 'recognition' && activitySpec ? (
                 <button
                   type='button'
                   className='btn btn-primary mt-10 w-full'
@@ -179,7 +292,7 @@ export default function ReviewPage() {
                 >
                   {_('Show answer')}
                 </button>
-              )}
+              ) : null}
             </section>
           )}
         </>

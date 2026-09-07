@@ -21,9 +21,7 @@ const importsIn = async (directory: string): Promise<string[]> => {
   const files = await filesBelow(directory);
   const sources = await Promise.all(files.map((file) => readFile(file, 'utf8')));
   return sources.flatMap((source) =>
-    [...source.matchAll(/(?:from\s+|import\s*)['"]([^'"]+)['"]/gu)].map(
-      (match) => match[1] ?? '',
-    ),
+    [...source.matchAll(/(?:from\s+|import\s*)['"]([^'"]+)['"]/gu)].map((match) => match[1] ?? ''),
   );
 };
 

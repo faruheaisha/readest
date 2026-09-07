@@ -310,6 +310,42 @@ const migrations: Record<SchemaType, MigrationEntry[]> = {
         ON learning_annotations (content_id, updated_at);
       `,
     },
+    {
+      name: '2026090702_learning_activities',
+      sql: `
+        CREATE TABLE IF NOT EXISTS learning_activity_specs (
+          id TEXT PRIMARY KEY,
+          kind TEXT NOT NULL,
+          learning_object_id TEXT NOT NULL REFERENCES learning_objects(id) ON DELETE CASCADE,
+          prompt TEXT NOT NULL,
+          answer TEXT NOT NULL,
+          source_locator_json TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_activity_specs_object
+        ON learning_activity_specs (learning_object_id, kind);
+
+        CREATE TABLE IF NOT EXISTS learning_activity_attempts (
+          id TEXT PRIMARY KEY,
+          activity_id TEXT NOT NULL REFERENCES learning_activity_specs(id) ON DELETE CASCADE,
+          learning_object_id TEXT NOT NULL REFERENCES learning_objects(id) ON DELETE CASCADE,
+          response TEXT NOT NULL,
+          started_at INTEGER NOT NULL,
+          completed_at INTEGER
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_activity_attempts_object
+        ON learning_activity_attempts (learning_object_id, completed_at);
+
+        CREATE TABLE IF NOT EXISTS learning_activity_results (
+          attempt_id TEXT PRIMARY KEY REFERENCES learning_activity_attempts(id) ON DELETE CASCADE,
+          correct INTEGER NOT NULL,
+          score REAL NOT NULL,
+          duration_ms INTEGER NOT NULL,
+          completed_at INTEGER NOT NULL
+        );
+      `,
+    },
   ],
   reedy: [
     {

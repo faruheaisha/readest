@@ -1,5 +1,6 @@
 import type { ZodType } from 'zod';
-import type { ActionDefinition, ActivitySpec, ProviderMetadata } from '../domain';
+import type { ActionDefinition, ActivityKind, ProviderMetadata } from '../domain';
+import type { ActivityEnginePort } from '../ports';
 
 export interface CapabilityRegistration {
   owner: string;
@@ -73,9 +74,17 @@ export class ActionRegistry extends NamedRegistry<ActionDefinition> {
   }
 }
 
-export class ActivityRegistry extends NamedRegistry<ActivitySpec> {
+export class ActivityRegistry extends NamedRegistry<ActivityEnginePort> {
   constructor() {
     super('ActivityRegistry');
+  }
+
+  registerEngine(engine: ActivityEnginePort): void {
+    this.register(engine.kind, engine);
+  }
+
+  requireKind(kind: ActivityKind): ActivityEnginePort {
+    return this.require(kind);
   }
 }
 

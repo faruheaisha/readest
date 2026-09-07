@@ -27,6 +27,9 @@ describe('ReadestLearningDatabaseAdapter', () => {
     );
 
     expect(tables.map((row) => row.name)).toEqual([
+      'learning_activity_attempts',
+      'learning_activity_results',
+      'learning_activity_specs',
       'learning_annotations',
       'learning_events',
       'learning_objects',
@@ -36,6 +39,41 @@ describe('ReadestLearningDatabaseAdapter', () => {
       'learning_schedules',
       'learning_today_plans',
     ]);
+  });
+
+  it('persists activity specs, attempts, and results through the Activity repository port', async () => {
+    const spec = {
+      id: 'spec-1',
+      kind: 'typing',
+      learningObjectId: 'object-1',
+      prompt: 'Type it',
+      answer: 'evidence',
+    } as const;
+    const attempt = {
+      id: 'attempt-1',
+      activityId: spec.id,
+      learningObjectId: spec.learningObjectId,
+      response: 'evidence',
+      startedAt: new Date('2026-09-07T12:00:00.000Z'),
+      completedAt: new Date('2026-09-07T12:00:02.000Z'),
+    };
+    const result = {
+      attemptId: attempt.id,
+      correct: true,
+      score: 1,
+      durationMs: 2_000,
+      completedAt: attempt.completedAt,
+    };
+
+    await adapter.saveSpec(spec);
+    await adapter.saveAttempt(attempt, result);
+
+    expect(await adapter.getSpec(spec.id)).toEqual(spec);
+    const rows = await db.select<{ score: number }>(
+      'SELECT score FROM learning_activity_results WHERE attempt_id = ?',
+      [attempt.id],
+    );
+    expect(rows[0]?.score).toBe(1);
   });
 
   it('persists the complete save, review, and Today projection loop', async () => {

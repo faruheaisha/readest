@@ -1,6 +1,9 @@
 import type { DatabaseService } from '@/types/database';
 import { locatorSchema } from '../contracts';
 import type {
+  ActivityAttempt,
+  ActivityResult,
+  ActivitySpec,
   LearningEvent,
   LearningEventType,
   MemoryReviewEvent,
@@ -14,11 +17,22 @@ import type {
   TodayPlanItem,
 } from '../domain';
 import type {
+  ActivityRepositoryPort,
   LearningEventPort,
   LearningPlanPort,
   LexiconRepositoryPort,
   MemoryRepositoryPort,
 } from '../ports';
+
+interface ActivitySpecRow {
+  id: string;
+  kind: ActivitySpec['kind'];
+  learning_object_id: string;
+  prompt: string;
+  answer: string;
+  source_locator_json: string | null;
+  [key: string]: unknown;
+}
 
 interface LearningObjectRow {
   id: string;
@@ -190,7 +204,12 @@ const toTodayPlan = (row: TodayPlanRow): TodayPlan => ({
 });
 
 export class ReadestLearningDatabaseAdapter
-  implements LexiconRepositoryPort, MemoryRepositoryPort, LearningPlanPort, LearningEventPort
+  implements
+    LexiconRepositoryPort,
+    ActivityRepositoryPort,
+    MemoryRepositoryPort,
+    LearningPlanPort,
+    LearningEventPort
 {
   private writeQueue: Promise<unknown> = Promise.resolve();
 
@@ -280,6 +299,81 @@ export class ReadestLearningDatabaseAdapter
       [learningObjectId],
     );
     return rows.map(toOccurrence);
+  }
+
+  async getSpec(id: string): Promise<ActivitySpec | null> {
+    const rows = await this.db.select<ActivitySpecRow>(
+      'SELECT * FROM learning_activity_specs WHERE id = ?',
+      [id],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      kind: row.kind,
+      learningObjectId: row.learning_object_id,
+      prompt: row.prompt,
+      answer: row.answer,
+      ...(row.source_locator_json
+        ? { sourceLocator: locatorSchema.parse(JSON.parse(row.source_locator_json)) }
+        : {}),
+    };
+  }
+
+  async saveSpec(spec: ActivitySpec): Promise<void> {
+    await this.db.execute(
+      `INSERT INTO learning_activity_specs
+        (id, kind, learning_object_id, prompt, answer, source_locator_json)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO NOTHING`,
+      [
+        spec.id,
+        spec.kind,
+        spec.learningObjectId,
+        spec.prompt,
+        spec.answer,
+        spec.sourceLocator ? JSON.stringify(spec.sourceLocator) : null,
+      ],
+    );
+  }
+
+  saveAttempt(attempt: ActivityAttempt, result: ActivityResult): Promise<void> {
+    return this.enqueue(async () => {
+      await this.db.execute('BEGIN IMMEDIATE');
+      try {
+        await this.db.execute(
+          `INSERT INTO learning_activity_attempts
+            (id, activity_id, learning_object_id, response, started_at, completed_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO NOTHING`,
+          [
+            attempt.id,
+            attempt.activityId,
+            attempt.learningObjectId,
+            attempt.response,
+            attempt.startedAt.getTime(),
+            attempt.completedAt?.getTime() ?? null,
+          ],
+        );
+        await this.db.execute(
+          `INSERT INTO learning_activity_results
+            (attempt_id, correct, score, duration_ms, completed_at)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(attempt_id) DO NOTHING`,
+          [
+            result.attemptId,
+            result.correct ? 1 : 0,
+            result.score,
+            result.durationMs,
+            result.completedAt.getTime(),
+          ],
+        );
+        await this.db.execute('COMMIT');
+      } catch (error) {
+        await this.db.execute('ROLLBACK');
+        throw error;
+      }
+    });
   }
 
   async getReviewItem(id: string): Promise<ReviewItem | null> {

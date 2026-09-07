@@ -1,4 +1,7 @@
 import type {
+  ActivityAttempt,
+  ActivityResult,
+  ActivitySpec,
   LearningEvent,
   MemoryReviewEvent,
   Occurrence,
@@ -8,11 +11,29 @@ import type {
   TodayPlan,
 } from '../domain';
 import type {
+  ActivityRepositoryPort,
   LearningEventPort,
   LearningPlanPort,
   LexiconRepositoryPort,
   MemoryRepositoryPort,
 } from '../ports';
+
+export class InMemoryActivityAdapter implements ActivityRepositoryPort {
+  readonly #specs = new Map<string, ActivitySpec>();
+  readonly #attempts = new Map<string, { attempt: ActivityAttempt; result: ActivityResult }>();
+
+  async getSpec(id: string): Promise<ActivitySpec | null> {
+    return this.#specs.get(id) ?? null;
+  }
+
+  async saveSpec(spec: ActivitySpec): Promise<void> {
+    this.#specs.set(spec.id, spec);
+  }
+
+  async saveAttempt(attempt: ActivityAttempt, result: ActivityResult): Promise<void> {
+    if (!this.#attempts.has(attempt.id)) this.#attempts.set(attempt.id, { attempt, result });
+  }
+}
 
 const locatorKey = (occurrence: Occurrence): string =>
   JSON.stringify({

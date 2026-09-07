@@ -2300,5 +2300,17 @@
   "Saved with its source context.": "已连同原始语境保存。",
   "Save & practice": "保存并练习",
   "Review saved. Reopen the source to strengthen the connection.": "复习已保存。重新打开原文以强化语境联系。",
-  "Return to source": "返回原文"
+  "Return to source": "返回原文",
+  "recognition": "识记",
+  "typing": "键入",
+  "spelling": "拼写",
+  "cloze": "填空",
+  "Preparing activity…": "正在准备练习……",
+  "Listen and spell the saved item.": "听音并拼写已保存的内容。",
+  "Complete the saved item.": "补全已保存的内容。",
+  "Listen": "播放",
+  "Your answer": "你的答案",
+  "Check answer": "检查答案",
+  "Correct": "正确",
+  "Not quite—compare and try again later.": "还不完全正确——对照答案，稍后再试。"
 }
