@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiBookOpen, FiCheck, FiZap, FiX } from 'react-icons/fi';
 import { useEnv } from '@/context/EnvContext';
@@ -15,12 +15,10 @@ const kinds: readonly LearningObjectKind[] = ['word', 'sense', 'expression', 'se
 export const LearningContextPanel = ({
   selection,
   onDictionary,
-  onTranslation,
   onClose,
 }: {
   selection: SelectionContext;
   onDictionary: () => void;
-  onTranslation: () => void;
   onClose: () => void;
 }) => {
   const _ = useTranslation();
@@ -34,15 +32,26 @@ export const LearningContextPanel = ({
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [explanation, setExplanation] = useState<Artifact | null>(null);
+  const [translation, setTranslation] = useState<Artifact | null>(null);
   const [explaining, setExplaining] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const [explainError, setExplainError] = useState<string | null>(null);
+  const [translationError, setTranslationError] = useState<string | null>(null);
+  const explainRequest = useRef(0);
+  const translationRequest = useRef(0);
   const targetLanguage = settings.globalReadSettings?.translateTargetLang || 'zh-CN';
 
   useEffect(() => {
+    explainRequest.current += 1;
+    translationRequest.current += 1;
     setKind(selection.text.trim().includes(' ') ? 'expression' : 'word');
     setSaved(false);
     setExplanation(null);
+    setTranslation(null);
+    setExplaining(false);
+    setTranslating(false);
     setExplainError(null);
+    setTranslationError(null);
   }, [selection]);
 
   const save = async (practice: boolean) => {
@@ -62,6 +71,7 @@ export const LearningContextPanel = ({
 
   const explain = async () => {
     if (!runtime || explaining) return;
+    const request = ++explainRequest.current;
     setExplaining(true);
     setExplainError(null);
     try {
@@ -76,18 +86,51 @@ export const LearningContextPanel = ({
             : `ai-${Date.now()}`,
         locale: targetLanguage,
       });
-      setExplanation(result);
+      if (request === explainRequest.current) setExplanation(result);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      setExplainError(
-        message.includes('AI_DAILY_QUOTA_EXCEEDED')
-          ? _('Your daily AI allowance has been used. Reading, dictionary, and review still work.')
-          : _(
-              'AI Explain is unavailable. Sign in for the platform allowance or configure your own provider in AI settings.',
-            ),
-      );
+      if (request === explainRequest.current) {
+        setExplainError(
+          message.includes('AI_DAILY_QUOTA_EXCEEDED')
+            ? _(
+                'Your daily AI allowance has been used. Reading, dictionary, and review still work.',
+              )
+            : _(
+                'AI Explain is unavailable. Sign in for the platform allowance or configure your own provider in AI settings.',
+              ),
+        );
+      }
     } finally {
-      setExplaining(false);
+      if (request === explainRequest.current) setExplaining(false);
+    }
+  };
+
+  const translate = async () => {
+    if (!runtime || translating) return;
+    const request = ++translationRequest.current;
+    setTranslating(true);
+    setTranslationError(null);
+    try {
+      const subjectId = await getUserID();
+      const result = await runtime.execution.execute<Artifact>({
+        actionId: 'translation.translate',
+        selection,
+        subjectId,
+        idempotencyKey:
+          typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : `translation-${Date.now()}`,
+        locale: targetLanguage,
+      });
+      if (request === translationRequest.current) setTranslation(result);
+    } catch {
+      if (request === translationRequest.current) {
+        setTranslationError(
+          _('Translation is unavailable. Try another provider or try again later.'),
+        );
+      }
+    } finally {
+      if (request === translationRequest.current) setTranslating(false);
     }
   };
 
@@ -115,8 +158,13 @@ export const LearningContextPanel = ({
             <button type='button' className='btn btn-outline btn-sm' onClick={onDictionary}>
               {_('Meaning')}
             </button>
-            <button type='button' className='btn btn-outline btn-sm' onClick={onTranslation}>
-              {_('Translation')}
+            <button
+              type='button'
+              className='btn btn-outline btn-sm'
+              disabled={loading || translating}
+              onClick={() => void translate()}
+            >
+              {translating ? _('Translating…') : _('Translation')}
             </button>
             <button
               type='button'
@@ -139,9 +187,23 @@ export const LearningContextPanel = ({
               </p>
             </div>
           )}
+          {translation && (
+            <div className='bg-base-200/60 mt-3 rounded-2xl p-4'>
+              <p className='text-base-content/50 text-xs font-semibold uppercase'>
+                {_('Translation')}
+              </p>
+              <p className='mt-2 whitespace-pre-wrap text-sm'>{translation.content}</p>
+              <p className='text-base-content/40 mt-3 text-xs'>{translation.provider.id}</p>
+            </div>
+          )}
           {explainError && (
             <p role='alert' className='text-warning mt-3 text-sm'>
               {explainError}
+            </p>
+          )}
+          {translationError && (
+            <p role='alert' className='text-warning mt-3 text-sm'>
+              {translationError}
             </p>
           )}
         </section>

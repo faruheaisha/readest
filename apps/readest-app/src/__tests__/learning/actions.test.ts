@@ -1,12 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AIExplainActionHandler, InMemoryArtifactCacheAdapter } from '@/learning';
+import {
+  AIExplainActionHandler,
+  InMemoryArtifactCacheAdapter,
+  TranslationActionHandler,
+} from '@/learning';
 import {
   ActionRegistry,
   ContractSchemaRegistry,
   ExecutionRuntime,
   ProviderRouter,
 } from '@/learning/kernel';
-import type { AIProviderPort, PolicyPort, QuotaPort } from '@/learning/ports';
+import type {
+  AIProviderPort,
+  PolicyPort,
+  QuotaPort,
+  TranslationProviderPort,
+} from '@/learning/ports';
 import type { Artifact, SelectionContext } from '@/learning/domain';
 import { PolicyRuntime } from '@/learning/kernel';
 
@@ -119,5 +128,45 @@ describe('learning AI action runtime', () => {
     providers.register('ai.explain', available);
 
     expect((await providers.resolve('ai.explain')).describe().id).toBe('configured');
+  });
+});
+
+describe('learning translation action runtime', () => {
+  it('routes translation through its provider and caches by the complete context', async () => {
+    const translate = vi.fn(
+      async (_selection: SelectionContext, language: string): Promise<Artifact> => ({
+        ...makeArtifact('readest-translation', language),
+        actionId: 'translation.translate',
+        kind: 'translation',
+        content: `Translation in ${language}`,
+      }),
+    );
+    const provider: TranslationProviderPort = {
+      resultVersion: 'translation-v1',
+      describe: () => ({ id: 'readest-translation', version: '1.0.0' }),
+      isAvailable: async () => true,
+      translate,
+    };
+    const providers = new ProviderRouter<TranslationProviderPort>();
+    providers.register('translation.execute', provider);
+    const handler = new TranslationActionHandler({
+      providers,
+      cache: new InMemoryArtifactCacheAdapter(),
+    });
+    const action = {
+      id: 'translation.translate',
+      capability: 'translation.execute',
+      title: 'Translation',
+      inputKinds: ['word', 'sense', 'expression', 'sentence'] as const,
+      outputKind: 'translation' as const,
+    };
+
+    const first = await handler.execute(selection, { action, locale: 'zh-CN' });
+    const cached = await handler.execute(selection, { action, locale: 'zh-CN' });
+    const otherLocale = await handler.execute(selection, { action, locale: 'ja' });
+
+    expect(cached).toBe(first);
+    expect(otherLocale.language).toBe('ja');
+    expect(translate).toHaveBeenCalledTimes(2);
   });
 });

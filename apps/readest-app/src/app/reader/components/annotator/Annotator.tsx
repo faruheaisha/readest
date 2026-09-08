@@ -2431,10 +2431,6 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
             setShowLearningPanel(false);
             handleDictionary();
           }}
-          onTranslation={() => {
-            setShowLearningPanel(false);
-            handleTranslation();
-          }}
           onClose={handleDismissPopupShowToolbar}
         />
       )}

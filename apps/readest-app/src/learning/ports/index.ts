@@ -123,6 +123,9 @@ export interface ArtifactCachePort {
 }
 
 export interface TranslationProviderPort {
+  readonly resultVersion: string;
+  describe(): Awaitable<ProviderMetadata>;
+  isAvailable(): Promise<boolean>;
   translate(selection: SelectionContext, targetLanguage: string): Promise<Artifact>;
 }
 

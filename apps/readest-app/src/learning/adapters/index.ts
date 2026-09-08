@@ -4,6 +4,7 @@ export * from './readest-database';
 export * from './readest-selection';
 export * from './activities';
 export * from './readest-ai';
+export * from './readest-translation';
 export * from './action-policy';
 export * from './readest-identity';
 export * from './feedback';

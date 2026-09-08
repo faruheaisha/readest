@@ -59,6 +59,7 @@ The first implementation slice includes:
 - return-to-source navigation through Readest's existing reader route and saved locator;
 - four Activity engines (Recognition, Typing, Spelling, and Cloze) behind one port, with persisted specs, attempts, results, and separate learning events;
 - a unified AI Explain action path through Action Registry, Policy/Quota, Provider Router, Execution Runtime, and Artifact;
+- Context Panel translation through the same governed action path, backed by the configured Readest translator and its existing cache;
 - reuse of Readest's Ollama, AI Gateway, and OpenAI-compatible BYOK providers behind `AIProviderPort`;
 - an authenticated platform AI fallback with a configurable daily allowance, input limits, fixed operator-selected model, and server-side usage ledger;
 - durable local Artifact caching keyed by action, full selection context, prompt version, provider, model, and locale;
@@ -67,13 +68,13 @@ The first implementation slice includes:
 - a consent-gated feedback route for guests and accounts, with server-derived account ownership and no reading content in diagnostics;
 - English and Simplified Chinese UI copy.
 
-The Context Panel delegates meaning and translation back to Readest's existing providers. It does not duplicate dictionary, translation, or model clients. A configured user provider is preferred; signed-in users otherwise receive the operator-funded platform allowance. BYOK and local models do not consume that allowance.
+The Context Panel delegates meaning to Readest's existing dictionary surface while that rich-result adapter is migrated. Translation and AI already run through owned Ports and the unified Action/Artifact runtime without duplicating Readest's provider clients. A configured user AI provider is preferred; signed-in users otherwise receive the operator-funded platform allowance. BYOK and local models do not consume that allowance.
 
 Platform AI operations use `AI_GATEWAY_API_KEY` on the server. `AI_DAILY_ACTION_QUOTA` controls the per-account daily request allowance (default `10`), while `AI_PLATFORM_MODEL` controls the only model callers may use with the platform key. Client-supplied model names are ignored for operator-funded calls.
 
 ## Not complete yet
 
-This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires dictionary/translation convergence on the Action Runtime, lexical and annotation single-truth migrations, a versioned beta event contract, browseable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, operator feedback triage tooling, broader resource limits, and public-beta hardening.
+This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires dictionary convergence on the Action Runtime, lexical and annotation single-truth migrations, a versioned beta event contract, browseable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, operator feedback triage tooling, broader resource limits, and public-beta hardening.
 
 See [`MVP_STATUS.md`](./MVP_STATUS.md) for evidence-backed milestone status, the correction queue, and release gates.
 

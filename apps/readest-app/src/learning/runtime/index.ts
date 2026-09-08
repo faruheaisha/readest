@@ -17,11 +17,13 @@ import {
   ReadestLearningDatabaseAdapter,
   ReadestAIProviderAdapter,
   ReadestIdentityAdapter,
+  ReadestTranslationProviderAdapter,
 } from '../adapters';
 import {
   ActivityPracticeService,
   AIExplainActionHandler,
   LearningOrchestrator,
+  TranslationActionHandler,
 } from '../application';
 import {
   ActionRegistry,
@@ -31,7 +33,7 @@ import {
   PolicyRuntime,
   ProviderRouter,
 } from '../kernel';
-import type { AIProviderPort, FeedbackPort, IdentityPort } from '../ports';
+import type { AIProviderPort, FeedbackPort, IdentityPort, TranslationProviderPort } from '../ports';
 
 export interface LearningRuntime {
   database: DatabaseService;
@@ -40,7 +42,8 @@ export interface LearningRuntime {
   activities: ActivityRegistry;
   practice: ActivityPracticeService;
   actions: ActionRegistry;
-  providers: ProviderRouter<AIProviderPort>;
+  aiProviders: ProviderRouter<AIProviderPort>;
+  translationProviders: ProviderRouter<TranslationProviderPort>;
   execution: ExecutionRuntime;
   identity: IdentityPort;
   feedback: FeedbackPort;
@@ -75,26 +78,45 @@ export const createLearningRuntime = async (
     inputKinds: ['word', 'sense', 'expression', 'sentence'],
     outputKind: 'explanation',
   });
-  const providers = new ProviderRouter<AIProviderPort>();
-  providers.register(
+  actions.register('translation.translate', {
+    id: 'translation.translate',
+    capability: 'translation.execute',
+    title: 'Translation',
+    inputKinds: ['word', 'sense', 'expression', 'sentence'],
+    outputKind: 'translation',
+  });
+  const aiProviders = new ProviderRouter<AIProviderPort>();
+  aiProviders.register(
     'ai.explain',
     new ReadestAIProviderAdapter(
       () => useSettingsStore.getState().settings.aiSettings ?? DEFAULT_AI_SETTINGS,
     ),
   );
-  providers.register('ai.explain', new PlatformAIProviderAdapter());
+  aiProviders.register('ai.explain', new PlatformAIProviderAdapter());
+  const translationProviders = new ProviderRouter<TranslationProviderPort>();
+  translationProviders.register(
+    'translation.execute',
+    new ReadestTranslationProviderAdapter(() => useSettingsStore.getState().settings),
+  );
   const execution = new ExecutionRuntime(
     actions,
     new ContractSchemaRegistry(),
     new PolicyRuntime(
-      new CapabilityPolicyAdapter(['ai.explain']),
+      new CapabilityPolicyAdapter(['ai.explain', 'translation.execute']),
       new ProviderEnforcedQuotaAdapter(),
     ),
   );
   execution.register(
     'ai.explain',
     new AIExplainActionHandler({
-      providers,
+      providers: aiProviders,
+      cache: repository,
+    }),
+  );
+  execution.register(
+    'translation.translate',
+    new TranslationActionHandler({
+      providers: translationProviders,
       cache: repository,
     }),
   );
@@ -103,7 +125,8 @@ export const createLearningRuntime = async (
     repository,
     activities,
     actions,
-    providers,
+    aiProviders,
+    translationProviders,
     execution,
     identity,
     feedback,
