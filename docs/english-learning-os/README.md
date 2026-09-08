@@ -49,6 +49,8 @@ The first implementation slice includes:
 - reuse of Readest's Ollama, AI Gateway, and OpenAI-compatible BYOK providers behind `AIProviderPort`;
 - an authenticated platform AI fallback with a configurable daily allowance, input limits, fixed operator-selected model, and server-side usage ledger;
 - Artifact caching keyed by action, full selection context, prompt version, provider, model, and locale;
+- an `IdentityPort` adapter over Readest's existing Supabase session plus a stable local guest identity;
+- idempotent guest-to-account ownership linking that preserves every learning object ID and refuses silent reassignment to another account;
 - English and Simplified Chinese UI copy.
 
 The Context Panel delegates meaning and translation back to Readest's existing providers. It does not duplicate dictionary, translation, or model clients. A configured user provider is preferred; signed-in users otherwise receive the operator-funded platform allowance. BYOK and local models do not consume that allowance.
@@ -57,7 +59,7 @@ Platform AI operations use `AI_GATEWAY_API_KEY` on the server. `AI_DAILY_ACTION_
 
 ## Not complete yet
 
-This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires durable Artifact history, locator re-anchoring after source changes, replica-sync categories, guest-to-account migration on top of Readest identity, export/deletion, feedback/operator tooling, broader resource limits, and public-beta hardening.
+This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires durable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, feedback/operator tooling, broader resource limits, and public-beta hardening.
 
 ## Verification
 

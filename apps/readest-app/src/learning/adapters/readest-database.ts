@@ -19,6 +19,7 @@ import type {
 import type {
   ActivityRepositoryPort,
   LearningEventPort,
+  LearningIdentityRepositoryPort,
   LearningPlanPort,
   LexiconRepositoryPort,
   MemoryRepositoryPort,
@@ -209,7 +210,8 @@ export class ReadestLearningDatabaseAdapter
     ActivityRepositoryPort,
     MemoryRepositoryPort,
     LearningPlanPort,
-    LearningEventPort
+    LearningEventPort,
+    LearningIdentityRepositoryPort
 {
   private writeQueue: Promise<unknown> = Promise.resolve();
 
@@ -542,5 +544,43 @@ export class ReadestLearningDatabaseAdapter
       aggregateId: row.aggregate_id ?? undefined,
       properties: JSON.parse(row.properties_json) as LearningEvent['properties'],
     }));
+  }
+
+  getOrCreateGuestId(candidateId: string): Promise<string> {
+    return this.enqueue(async () => {
+      await this.db.execute(
+        `INSERT INTO learning_identity_state (key, value, updated_at)
+         VALUES ('guest_id', ?, ?)
+         ON CONFLICT(key) DO NOTHING`,
+        [candidateId, Date.now()],
+      );
+      const rows = await this.db.select<{ value: string }>(
+        "SELECT value FROM learning_identity_state WHERE key = 'guest_id'",
+      );
+      return rows[0]!.value;
+    });
+  }
+
+  linkGuestIdentity(guestId: string, subjectId: string, linkedAt: Date): Promise<void> {
+    return this.enqueue(async () => {
+      await this.db.execute(
+        `INSERT INTO learning_identity_links (guest_id, subject_id, linked_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(guest_id) DO NOTHING`,
+        [guestId, subjectId, linkedAt.getTime()],
+      );
+      const linkedSubject = await this.getLinkedSubject(guestId);
+      if (linkedSubject !== subjectId) {
+        throw new Error(`Guest identity "${guestId}" is already linked to another account`);
+      }
+    });
+  }
+
+  async getLinkedSubject(guestId: string): Promise<string | null> {
+    const rows = await this.db.select<{ subject_id: string }>(
+      'SELECT subject_id FROM learning_identity_links WHERE guest_id = ?',
+      [guestId],
+    );
+    return rows[0]?.subject_id ?? null;
   }
 }

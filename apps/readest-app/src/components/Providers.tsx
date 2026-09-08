@@ -42,6 +42,7 @@ import { upgradeToKeychainIfAvailable } from '@/libs/crypto/passphrase';
 import { cryptoSession } from '@/libs/crypto/session';
 import { useAppLockStore } from '@/store/appLockStore';
 import { initSettingsSync } from '@/services/sync/replicaSettingsSync';
+import { LearningIdentityBridge } from '@/components/learning/LearningIdentityBridge';
 
 // One-time, on first launch after this feature ships, decide how to handle
 // PostHog telemetry for the current install:
@@ -231,6 +232,7 @@ const Providers = ({ children }: { children: React.ReactNode }) => {
   return (
     <CSPostHogProvider>
       <AuthProvider>
+        <LearningIdentityBridge />
         <IconContext.Provider value={{ size: `${iconSize}px` }}>
           <SyncProvider>
             <DropdownProvider>

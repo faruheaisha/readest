@@ -32,6 +32,8 @@ describe('ReadestLearningDatabaseAdapter', () => {
       'learning_activity_specs',
       'learning_annotations',
       'learning_events',
+      'learning_identity_links',
+      'learning_identity_state',
       'learning_objects',
       'learning_occurrences',
       'learning_review_events',
@@ -39,6 +41,19 @@ describe('ReadestLearningDatabaseAdapter', () => {
       'learning_schedules',
       'learning_today_plans',
     ]);
+  });
+
+  it('links one stable guest identity to an account without rewriting learning IDs', async () => {
+    const guestId = await adapter.getOrCreateGuestId('guest-fixed');
+
+    expect(await adapter.getOrCreateGuestId('guest-other')).toBe(guestId);
+    await adapter.linkGuestIdentity(guestId, 'subject-1', new Date('2026-09-08T12:00:00.000Z'));
+    await adapter.linkGuestIdentity(guestId, 'subject-1', new Date('2026-09-08T12:01:00.000Z'));
+
+    expect(await adapter.getLinkedSubject(guestId)).toBe('subject-1');
+    await expect(
+      adapter.linkGuestIdentity(guestId, 'subject-2', new Date('2026-09-08T12:02:00.000Z')),
+    ).rejects.toThrow('already linked');
   });
 
   it('persists activity specs, attempts, and results through the Activity repository port', async () => {

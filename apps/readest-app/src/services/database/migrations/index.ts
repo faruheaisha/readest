@@ -346,6 +346,25 @@ const migrations: Record<SchemaType, MigrationEntry[]> = {
         );
       `,
     },
+    {
+      name: '2026090801_learning_identity',
+      sql: `
+        CREATE TABLE IF NOT EXISTS learning_identity_state (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS learning_identity_links (
+          guest_id TEXT PRIMARY KEY,
+          subject_id TEXT NOT NULL,
+          linked_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_identity_links_subject
+        ON learning_identity_links (subject_id);
+      `,
+    },
   ],
   reedy: [
     {

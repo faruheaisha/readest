@@ -154,6 +154,12 @@ export interface IdentityPort {
   migrateGuest(guestId: string, subjectId: string): Promise<void>;
 }
 
+export interface LearningIdentityRepositoryPort {
+  getOrCreateGuestId(candidateId: string): Promise<string>;
+  linkGuestIdentity(guestId: string, subjectId: string, linkedAt: Date): Promise<void>;
+  getLinkedSubject(guestId: string): Promise<string | null>;
+}
+
 export interface EmailPort {
   sendVerification(email: string, verificationUrl: string): Promise<void>;
 }

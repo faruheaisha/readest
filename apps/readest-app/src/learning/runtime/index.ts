@@ -16,6 +16,7 @@ import {
   ProviderEnforcedQuotaAdapter,
   ReadestLearningDatabaseAdapter,
   ReadestAIProviderAdapter,
+  ReadestIdentityAdapter,
 } from '../adapters';
 import {
   ActivityPracticeService,
@@ -30,7 +31,7 @@ import {
   PolicyRuntime,
   ProviderRouter,
 } from '../kernel';
-import type { AIProviderPort } from '../ports';
+import type { AIProviderPort, IdentityPort } from '../ports';
 
 export interface LearningRuntime {
   database: DatabaseService;
@@ -41,6 +42,8 @@ export interface LearningRuntime {
   actions: ActionRegistry;
   providers: ProviderRouter<AIProviderPort>;
   execution: ExecutionRuntime;
+  identity: IdentityPort;
+  guestId: string;
 }
 
 const runtimes = new WeakMap<AppService, Promise<LearningRuntime>>();
@@ -50,6 +53,12 @@ export const createLearningRuntime = async (
 ): Promise<LearningRuntime> => {
   await migrate(database, getMigrations('learning'));
   const repository = new ReadestLearningDatabaseAdapter(database);
+  const guestId = await repository.getOrCreateGuestId(
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? `guest-${crypto.randomUUID()}`
+      : `guest-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+  );
+  const identity = new ReadestIdentityAdapter({ identities: repository });
   const activities = new ActivityRegistry();
   for (const engine of createActivityEngines()) activities.registerEngine(engine);
   const actions = new ActionRegistry();
@@ -90,6 +99,8 @@ export const createLearningRuntime = async (
     actions,
     providers,
     execution,
+    identity,
+    guestId,
     orchestrator: new LearningOrchestrator({
       lexicon: repository,
       memory: repository,
