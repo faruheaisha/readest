@@ -30,6 +30,8 @@ This document reports implemented evidence, migration gaps, and release gates. I
 | `f11e16a5` | Stable guest identity and safe account ownership linking |
 | `2fb90353` | Durable contextual AI Artifacts and cache semantics |
 | `986c9aa1` | Consent-gated beta feedback collection |
+| `d65bdc85` | Context Panel translation through the governed Action/Artifact runtime |
+| `b24f7136` | Readest dictionary providers through the governed Action/Artifact runtime with rich-surface fallback |
 
 ## Correction queue
 
