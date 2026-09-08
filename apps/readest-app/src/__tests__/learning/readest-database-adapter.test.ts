@@ -31,6 +31,7 @@ describe('ReadestLearningDatabaseAdapter', () => {
       'learning_activity_results',
       'learning_activity_specs',
       'learning_annotations',
+      'learning_artifacts',
       'learning_events',
       'learning_identity_links',
       'learning_identity_state',
@@ -54,6 +55,33 @@ describe('ReadestLearningDatabaseAdapter', () => {
     await expect(
       adapter.linkGuestIdentity(guestId, 'subject-2', new Date('2026-09-08T12:02:00.000Z')),
     ).rejects.toThrow('already linked');
+  });
+
+  it('persists generated Artifacts under their complete cache identity', async () => {
+    const artifact = {
+      id: 'artifact-1',
+      actionId: 'ai.explain',
+      selection: {
+        contentId: 'book-1',
+        contentVersionId: 'book-1-v1',
+        text: 'break the ice',
+        language: 'en',
+        locator: {
+          href: 'chapter.xhtml',
+          locations: { progression: 0.3 },
+          text: { highlight: 'break the ice' },
+        },
+      },
+      kind: 'explanation',
+      content: 'Start a friendly conversation.',
+      language: 'en',
+      provider: { id: 'readest.openrouter', version: '1.0.0', model: 'test-model' },
+      createdAt: new Date('2026-09-08T12:00:00.000Z'),
+    } as const;
+
+    await adapter.putArtifact('complete-cache-key', artifact);
+
+    expect(await adapter.getArtifact('complete-cache-key')).toEqual(artifact);
   });
 
   it('persists activity specs, attempts, and results through the Activity repository port', async () => {

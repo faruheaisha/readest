@@ -62,11 +62,11 @@ export class AIExplainActionHandler implements ActionHandler<Artifact> {
       model: metadata.model,
       locale: context.locale,
     });
-    const cached = await this.dependencies.cache.get(key);
+    const cached = await this.dependencies.cache.getArtifact(key);
     if (cached) return cached;
 
     const artifact = await provider.explain(selection, context.locale);
-    await this.dependencies.cache.put(key, artifact);
+    await this.dependencies.cache.putArtifact(key, artifact);
     return artifact;
   }
 }

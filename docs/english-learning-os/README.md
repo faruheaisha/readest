@@ -48,7 +48,7 @@ The first implementation slice includes:
 - a unified AI Explain action path through Action Registry, Policy/Quota, Provider Router, Execution Runtime, and Artifact;
 - reuse of Readest's Ollama, AI Gateway, and OpenAI-compatible BYOK providers behind `AIProviderPort`;
 - an authenticated platform AI fallback with a configurable daily allowance, input limits, fixed operator-selected model, and server-side usage ledger;
-- Artifact caching keyed by action, full selection context, prompt version, provider, model, and locale;
+- durable local Artifact caching keyed by action, full selection context, prompt version, provider, model, and locale;
 - an `IdentityPort` adapter over Readest's existing Supabase session plus a stable local guest identity;
 - idempotent guest-to-account ownership linking that preserves every learning object ID and refuses silent reassignment to another account;
 - English and Simplified Chinese UI copy.
@@ -59,7 +59,7 @@ Platform AI operations use `AI_GATEWAY_API_KEY` on the server. `AI_DAILY_ACTION_
 
 ## Not complete yet
 
-This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires durable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, feedback/operator tooling, broader resource limits, and public-beta hardening.
+This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires browseable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, feedback/operator tooling, broader resource limits, and public-beta hardening.
 
 ## Verification
 

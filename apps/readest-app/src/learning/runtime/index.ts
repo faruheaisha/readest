@@ -11,7 +11,6 @@ import {
   CapabilityPolicyAdapter,
   createActivityEngines,
   FsrsMemorySchedulerAdapter,
-  InMemoryArtifactCacheAdapter,
   PlatformAIProviderAdapter,
   ProviderEnforcedQuotaAdapter,
   ReadestLearningDatabaseAdapter,
@@ -89,7 +88,7 @@ export const createLearningRuntime = async (
     'ai.explain',
     new AIExplainActionHandler({
       providers,
-      cache: new InMemoryArtifactCacheAdapter(),
+      cache: repository,
     }),
   );
   return {

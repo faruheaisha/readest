@@ -23,11 +23,11 @@ import type {
 export class InMemoryArtifactCacheAdapter implements ArtifactCachePort {
   readonly #artifacts = new Map<string, Artifact>();
 
-  async get(key: string): Promise<Artifact | null> {
+  async getArtifact(key: string): Promise<Artifact | null> {
     return this.#artifacts.get(key) ?? null;
   }
 
-  async put(key: string, artifact: Artifact): Promise<void> {
+  async putArtifact(key: string, artifact: Artifact): Promise<void> {
     this.#artifacts.set(key, artifact);
   }
 }

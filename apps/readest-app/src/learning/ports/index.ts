@@ -118,8 +118,8 @@ export interface ActionExecutionPort {
 }
 
 export interface ArtifactCachePort {
-  get(key: string): Promise<Artifact | null>;
-  put(key: string, artifact: Artifact): Promise<void>;
+  getArtifact(key: string): Promise<Artifact | null>;
+  putArtifact(key: string, artifact: Artifact): Promise<void>;
 }
 
 export interface TranslationProviderPort {

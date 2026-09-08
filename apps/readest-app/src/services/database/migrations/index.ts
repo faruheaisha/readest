@@ -365,6 +365,25 @@ const migrations: Record<SchemaType, MigrationEntry[]> = {
         ON learning_identity_links (subject_id);
       `,
     },
+    {
+      name: '2026090802_learning_artifacts',
+      sql: `
+        CREATE TABLE IF NOT EXISTS learning_artifacts (
+          cache_key TEXT PRIMARY KEY,
+          id TEXT NOT NULL UNIQUE,
+          action_id TEXT NOT NULL,
+          selection_json TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          content TEXT NOT NULL,
+          language TEXT NOT NULL,
+          provider_json TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_artifacts_action_created
+        ON learning_artifacts (action_id, created_at DESC);
+      `,
+    },
   ],
   reedy: [
     {

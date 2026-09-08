@@ -1,9 +1,10 @@
 import type { DatabaseService } from '@/types/database';
-import { locatorSchema } from '../contracts';
+import { locatorSchema, selectionContextSchema } from '../contracts';
 import type {
   ActivityAttempt,
   ActivityResult,
   ActivitySpec,
+  Artifact,
   LearningEvent,
   LearningEventType,
   MemoryReviewEvent,
@@ -18,6 +19,7 @@ import type {
 } from '../domain';
 import type {
   ActivityRepositoryPort,
+  ArtifactCachePort,
   LearningEventPort,
   LearningIdentityRepositoryPort,
   LearningPlanPort,
@@ -32,6 +34,19 @@ interface ActivitySpecRow {
   prompt: string;
   answer: string;
   source_locator_json: string | null;
+  [key: string]: unknown;
+}
+
+interface ArtifactRow {
+  cache_key: string;
+  id: string;
+  action_id: string;
+  selection_json: string;
+  kind: Artifact['kind'];
+  content: string;
+  language: string;
+  provider_json: string;
+  created_at: number;
   [key: string]: unknown;
 }
 
@@ -204,6 +219,40 @@ const toTodayPlan = (row: TodayPlanRow): TodayPlan => ({
   items: restorePlanItems(row.items_json),
 });
 
+const restoreProvider = (providerJson: string): Artifact['provider'] => {
+  const provider: unknown = JSON.parse(providerJson);
+  if (!provider || typeof provider !== 'object') {
+    throw new Error('Stored Artifact provider metadata is invalid');
+  }
+  const values = provider as Record<string, unknown>;
+  if (typeof values['id'] !== 'string' || typeof values['version'] !== 'string') {
+    throw new Error('Stored Artifact provider identity is invalid');
+  }
+  if (values['model'] !== undefined && typeof values['model'] !== 'string') {
+    throw new Error('Stored Artifact provider model is invalid');
+  }
+  if (values['region'] !== undefined && typeof values['region'] !== 'string') {
+    throw new Error('Stored Artifact provider region is invalid');
+  }
+  return {
+    id: values['id'],
+    version: values['version'],
+    ...(values['model'] ? { model: values['model'] } : {}),
+    ...(values['region'] ? { region: values['region'] } : {}),
+  };
+};
+
+const toArtifact = (row: ArtifactRow): Artifact => ({
+  id: row.id,
+  actionId: row.action_id,
+  selection: selectionContextSchema.parse(JSON.parse(row.selection_json)),
+  kind: row.kind,
+  content: row.content,
+  language: row.language,
+  provider: restoreProvider(row.provider_json),
+  createdAt: new Date(row.created_at),
+});
+
 export class ReadestLearningDatabaseAdapter
   implements
     LexiconRepositoryPort,
@@ -211,6 +260,7 @@ export class ReadestLearningDatabaseAdapter
     MemoryRepositoryPort,
     LearningPlanPort,
     LearningEventPort,
+    ArtifactCachePort,
     LearningIdentityRepositoryPort
 {
   private writeQueue: Promise<unknown> = Promise.resolve();
@@ -513,6 +563,34 @@ export class ReadestLearningDatabaseAdapter
       [date],
     );
     return rows[0] ? toTodayPlan(rows[0]) : null;
+  }
+
+  async getArtifact(key: string): Promise<Artifact | null> {
+    const rows = await this.db.select<ArtifactRow>(
+      'SELECT * FROM learning_artifacts WHERE cache_key = ?',
+      [key],
+    );
+    return rows[0] ? toArtifact(rows[0]) : null;
+  }
+
+  async putArtifact(key: string, artifact: Artifact): Promise<void> {
+    await this.db.execute(
+      `INSERT INTO learning_artifacts
+        (cache_key, id, action_id, selection_json, kind, content, language, provider_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(cache_key) DO NOTHING`,
+      [
+        key,
+        artifact.id,
+        artifact.actionId,
+        JSON.stringify(artifact.selection),
+        artifact.kind,
+        artifact.content,
+        artifact.language,
+        JSON.stringify(artifact.provider),
+        artifact.createdAt.getTime(),
+      ],
+    );
   }
 
   async publish(event: LearningEvent): Promise<void> {
