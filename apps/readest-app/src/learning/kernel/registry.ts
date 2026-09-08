@@ -68,6 +68,27 @@ export class ProviderRegistry extends NamedRegistry<ProviderMetadata> {
   }
 }
 
+export class ProviderRouter<TProvider extends { isAvailable(): Promise<boolean> }> {
+  readonly #routes = new Map<string, TProvider[]>();
+
+  register(capability: string, provider: TProvider): void {
+    const providers = this.#routes.get(capability) ?? [];
+    if (providers.includes(provider)) {
+      throw new Error(`ProviderRouter: provider is already registered for "${capability}"`);
+    }
+    providers.push(provider);
+    this.#routes.set(capability, providers);
+  }
+
+  async resolve(capability: string): Promise<TProvider> {
+    const providers = this.#routes.get(capability) ?? [];
+    for (const provider of providers) {
+      if (await provider.isAvailable()) return provider;
+    }
+    throw new Error(`ProviderRouter: no available provider for "${capability}"`);
+  }
+}
+
 export class ActionRegistry extends NamedRegistry<ActionDefinition> {
   constructor() {
     super('ActionRegistry');

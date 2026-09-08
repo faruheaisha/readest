@@ -2312,5 +2312,9 @@
   "Your answer": "你的答案",
   "Check answer": "检查答案",
   "Correct": "正确",
-  "Not quite—compare and try again later.": "还不完全正确——对照答案，稍后再试。"
+  "Not quite—compare and try again later.": "还不完全正确——对照答案，稍后再试。",
+  "Explaining…": "正在解释……",
+  "AI Explain": "AI 解释",
+  "Your daily AI allowance has been used. Reading, dictionary, and review still work.": "今日 AI 免费额度已用完；阅读、词典和复习仍可正常使用。",
+  "AI Explain is unavailable. Sign in for the platform allowance or configure your own provider in AI settings.": "AI 解释暂不可用。请登录使用平台额度，或在 AI 设置中配置自己的服务。"
 }

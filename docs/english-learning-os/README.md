@@ -45,13 +45,19 @@ The first implementation slice includes:
 - explicit Save versus Save & Practice behavior;
 - return-to-source navigation through Readest's existing reader route and saved locator;
 - four Activity engines (Recognition, Typing, Spelling, and Cloze) behind one port, with persisted specs, attempts, results, and separate learning events;
+- a unified AI Explain action path through Action Registry, Policy/Quota, Provider Router, Execution Runtime, and Artifact;
+- reuse of Readest's Ollama, AI Gateway, and OpenAI-compatible BYOK providers behind `AIProviderPort`;
+- an authenticated platform AI fallback with a configurable daily allowance, input limits, fixed operator-selected model, and server-side usage ledger;
+- Artifact caching keyed by action, full selection context, prompt version, provider, model, and locale;
 - English and Simplified Chinese UI copy.
 
-The Context Panel delegates meaning and translation back to Readest's existing providers. It does not duplicate dictionary or translation engines.
+The Context Panel delegates meaning and translation back to Readest's existing providers. It does not duplicate dictionary, translation, or model clients. A configured user provider is preferred; signed-in users otherwise receive the operator-funded platform allowance. BYOK and local models do not consume that allowance.
+
+Platform AI operations use `AI_GATEWAY_API_KEY` on the server. `AI_DAILY_ACTION_QUOTA` controls the per-account daily request allowance (default `10`), while `AI_PLATFORM_MODEL` controls the only model callers may use with the platform key. Client-supplied model names are ignored for operator-funded calls.
 
 ## Not complete yet
 
-This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires AI provider routing/BYOK/quota, locator re-anchoring after source changes, replica-sync categories, email identity and guest migration, export/deletion, feedback/operator tooling, resource limits, and public-beta hardening.
+This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires durable Artifact history, locator re-anchoring after source changes, replica-sync categories, guest-to-account migration on top of Readest identity, export/deletion, feedback/operator tooling, broader resource limits, and public-beta hardening.
 
 ## Verification
 

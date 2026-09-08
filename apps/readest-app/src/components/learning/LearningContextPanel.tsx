@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FiBookOpen, FiCheck, FiX } from 'react-icons/fi';
+import { FiBookOpen, FiCheck, FiZap, FiX } from 'react-icons/fi';
 import { useEnv } from '@/context/EnvContext';
 import { useTranslation } from '@/hooks/useTranslation';
-import type { LearningObjectKind, SelectionContext } from '@/learning/domain';
+import type { Artifact, LearningObjectKind, SelectionContext } from '@/learning/domain';
 import { useLearningRuntime } from '@/learning/runtime';
+import { useSettingsStore } from '@/store/settingsStore';
+import { getUserID } from '@/utils/access';
 
 const kinds: readonly LearningObjectKind[] = ['word', 'sense', 'expression', 'sentence'];
 
@@ -24,12 +26,24 @@ export const LearningContextPanel = ({
   const _ = useTranslation();
   const router = useRouter();
   const { appService } = useEnv();
+  const { settings } = useSettingsStore();
   const { runtime, loading, error } = useLearningRuntime(appService);
   const [kind, setKind] = useState<LearningObjectKind>(
     selection.text.trim().includes(' ') ? 'expression' : 'word',
   );
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [explanation, setExplanation] = useState<Artifact | null>(null);
+  const [explaining, setExplaining] = useState(false);
+  const [explainError, setExplainError] = useState<string | null>(null);
+  const targetLanguage = settings.globalReadSettings?.translateTargetLang || 'zh-CN';
+
+  useEffect(() => {
+    setKind(selection.text.trim().includes(' ') ? 'expression' : 'word');
+    setSaved(false);
+    setExplanation(null);
+    setExplainError(null);
+  }, [selection]);
 
   const save = async (practice: boolean) => {
     if (!runtime || saving) return;
@@ -43,6 +57,37 @@ export const LearningContextPanel = ({
       setSaved(true);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const explain = async () => {
+    if (!runtime || explaining) return;
+    setExplaining(true);
+    setExplainError(null);
+    try {
+      const subjectId = await getUserID();
+      const result = await runtime.execution.execute<Artifact>({
+        actionId: 'ai.explain',
+        selection,
+        subjectId,
+        idempotencyKey:
+          typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : `ai-${Date.now()}`,
+        locale: targetLanguage,
+      });
+      setExplanation(result);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      setExplainError(
+        message.includes('AI_DAILY_QUOTA_EXCEEDED')
+          ? _('Your daily AI allowance has been used. Reading, dictionary, and review still work.')
+          : _(
+              'AI Explain is unavailable. Sign in for the platform allowance or configure your own provider in AI settings.',
+            ),
+      );
+    } finally {
+      setExplaining(false);
     }
   };
 
@@ -73,12 +118,32 @@ export const LearningContextPanel = ({
             <button type='button' className='btn btn-outline btn-sm' onClick={onTranslation}>
               {_('Translation')}
             </button>
+            <button
+              type='button'
+              className='btn btn-outline btn-sm col-span-2'
+              disabled={loading || explaining}
+              onClick={() => void explain()}
+            >
+              <FiZap aria-hidden='true' />
+              {explaining ? _('Explaining…') : _('AI Explain')}
+            </button>
           </div>
-          <p className='text-base-content/45 mt-3 text-xs'>
-            {_(
-              'Dictionary and translation reuse Readest providers. AI Explain will use the same action runtime when a provider is configured.',
-            )}
-          </p>
+          {explanation && (
+            <div className='bg-base-200/60 mt-3 rounded-2xl p-4'>
+              <p className='text-base-content/50 text-xs font-semibold uppercase'>
+                {_('AI Explain')}
+              </p>
+              <p className='mt-2 whitespace-pre-wrap text-sm'>{explanation.content}</p>
+              <p className='text-base-content/40 mt-3 text-xs'>
+                {explanation.provider.id} · {explanation.provider.model}
+              </p>
+            </div>
+          )}
+          {explainError && (
+            <p role='alert' className='text-warning mt-3 text-sm'>
+              {explainError}
+            </p>
+          )}
         </section>
         <section>
           <h3 className='text-base-content/50 text-xs font-semibold uppercase'>{_('Save as')}</h3>

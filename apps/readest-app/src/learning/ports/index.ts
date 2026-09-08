@@ -15,6 +15,7 @@ import type {
   Locator,
   MemoryReviewEvent,
   Occurrence,
+  ProviderMetadata,
   ResourcePackManifest,
   ReviewItem,
   Rights,
@@ -116,11 +117,19 @@ export interface ActionExecutionPort {
   execute(action: ActionDefinition, selection: SelectionContext): Promise<ActionExecution>;
 }
 
+export interface ArtifactCachePort {
+  get(key: string): Promise<Artifact | null>;
+  put(key: string, artifact: Artifact): Promise<void>;
+}
+
 export interface TranslationProviderPort {
   translate(selection: SelectionContext, targetLanguage: string): Promise<Artifact>;
 }
 
 export interface AIProviderPort {
+  readonly promptVersion: string;
+  describe(): ProviderMetadata;
+  isAvailable(): Promise<boolean>;
   explain(selection: SelectionContext, targetLanguage: string): Promise<Artifact>;
 }
 

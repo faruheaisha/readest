@@ -1,4 +1,4 @@
-import type { LearningEvent, SelectionContext } from '../domain';
+import type { ActionDefinition, LearningEvent, SelectionContext } from '../domain';
 import type { Awaitable, JobPort, PolicyPort, QuotaPort, TelemetryPort } from '../ports';
 import { ActionRegistry, ContractSchemaRegistry } from './registry';
 
@@ -68,7 +68,10 @@ export class JobRuntime {
 }
 
 export interface ActionHandler<TResult> {
-  execute(selection: SelectionContext): Promise<TResult>;
+  execute(
+    selection: SelectionContext,
+    context: { action: ActionDefinition; locale: string },
+  ): Promise<TResult>;
 }
 
 export class ExecutionRuntime {
@@ -93,6 +96,7 @@ export class ExecutionRuntime {
     selection: SelectionContext;
     subjectId: string | null;
     idempotencyKey: string;
+    locale?: string;
     outputSchema?: string;
   }): Promise<TResult> {
     const action = this.actions.require(input.actionId);
@@ -104,7 +108,10 @@ export class ExecutionRuntime {
     }
     const handler = this.#handlers.get(input.actionId);
     if (!handler) throw new Error(`ExecutionRuntime: no handler for "${input.actionId}"`);
-    const result = await handler.execute(input.selection);
+    const result = await handler.execute(input.selection, {
+      action,
+      locale: input.locale ?? input.selection.language,
+    });
     return input.outputSchema
       ? this.schemas.parse<TResult>(input.outputSchema, result)
       : (result as TResult);

@@ -2,6 +2,7 @@ import type {
   ActivityAttempt,
   ActivityResult,
   ActivitySpec,
+  Artifact,
   LearningEvent,
   MemoryReviewEvent,
   Occurrence,
@@ -12,11 +13,24 @@ import type {
 } from '../domain';
 import type {
   ActivityRepositoryPort,
+  ArtifactCachePort,
   LearningEventPort,
   LearningPlanPort,
   LexiconRepositoryPort,
   MemoryRepositoryPort,
 } from '../ports';
+
+export class InMemoryArtifactCacheAdapter implements ArtifactCachePort {
+  readonly #artifacts = new Map<string, Artifact>();
+
+  async get(key: string): Promise<Artifact | null> {
+    return this.#artifacts.get(key) ?? null;
+  }
+
+  async put(key: string, artifact: Artifact): Promise<void> {
+    this.#artifacts.set(key, artifact);
+  }
+}
 
 export class InMemoryActivityAdapter implements ActivityRepositoryPort {
   readonly #specs = new Map<string, ActivitySpec>();

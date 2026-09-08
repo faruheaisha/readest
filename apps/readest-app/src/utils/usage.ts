@@ -2,6 +2,7 @@ import { createSupabaseAdminClient } from '@/utils/supabase';
 
 export const USAGE_TYPES = {
   TRANSLATION_CHARS: 'translation_chars',
+  AI_ACTIONS: 'ai_actions',
 } as const;
 
 export const QUOTA_TYPES = {

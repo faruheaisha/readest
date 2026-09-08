@@ -5,13 +5,32 @@ import type { AppService } from '@/types/system';
 import { getMigrations } from '@/services/database/migrations';
 import { migrate } from '@/services/database/migrate';
 import type { DatabaseService } from '@/types/database';
+import { DEFAULT_AI_SETTINGS } from '@/services/ai/constants';
+import { useSettingsStore } from '@/store/settingsStore';
 import {
+  CapabilityPolicyAdapter,
   createActivityEngines,
   FsrsMemorySchedulerAdapter,
+  InMemoryArtifactCacheAdapter,
+  PlatformAIProviderAdapter,
+  ProviderEnforcedQuotaAdapter,
   ReadestLearningDatabaseAdapter,
+  ReadestAIProviderAdapter,
 } from '../adapters';
-import { ActivityPracticeService, LearningOrchestrator } from '../application';
-import { ActivityRegistry } from '../kernel';
+import {
+  ActivityPracticeService,
+  AIExplainActionHandler,
+  LearningOrchestrator,
+} from '../application';
+import {
+  ActionRegistry,
+  ActivityRegistry,
+  ContractSchemaRegistry,
+  ExecutionRuntime,
+  PolicyRuntime,
+  ProviderRouter,
+} from '../kernel';
+import type { AIProviderPort } from '../ports';
 
 export interface LearningRuntime {
   database: DatabaseService;
@@ -19,6 +38,9 @@ export interface LearningRuntime {
   orchestrator: LearningOrchestrator;
   activities: ActivityRegistry;
   practice: ActivityPracticeService;
+  actions: ActionRegistry;
+  providers: ProviderRouter<AIProviderPort>;
+  execution: ExecutionRuntime;
 }
 
 const runtimes = new WeakMap<AppService, Promise<LearningRuntime>>();
@@ -30,10 +52,44 @@ export const createLearningRuntime = async (
   const repository = new ReadestLearningDatabaseAdapter(database);
   const activities = new ActivityRegistry();
   for (const engine of createActivityEngines()) activities.registerEngine(engine);
+  const actions = new ActionRegistry();
+  actions.register('ai.explain', {
+    id: 'ai.explain',
+    capability: 'ai.explain',
+    title: 'AI Explain',
+    inputKinds: ['word', 'sense', 'expression', 'sentence'],
+    outputKind: 'explanation',
+  });
+  const providers = new ProviderRouter<AIProviderPort>();
+  providers.register(
+    'ai.explain',
+    new ReadestAIProviderAdapter(
+      () => useSettingsStore.getState().settings.aiSettings ?? DEFAULT_AI_SETTINGS,
+    ),
+  );
+  providers.register('ai.explain', new PlatformAIProviderAdapter());
+  const execution = new ExecutionRuntime(
+    actions,
+    new ContractSchemaRegistry(),
+    new PolicyRuntime(
+      new CapabilityPolicyAdapter(['ai.explain']),
+      new ProviderEnforcedQuotaAdapter(),
+    ),
+  );
+  execution.register(
+    'ai.explain',
+    new AIExplainActionHandler({
+      providers,
+      cache: new InMemoryArtifactCacheAdapter(),
+    }),
+  );
   return {
     database,
     repository,
     activities,
+    actions,
+    providers,
+    execution,
     orchestrator: new LearningOrchestrator({
       lexicon: repository,
       memory: repository,
