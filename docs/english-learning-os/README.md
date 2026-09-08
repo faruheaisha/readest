@@ -1,6 +1,6 @@
 # English Learning OS on Readest
 
-This directory records the implementation baseline for the English Learning OS fork. The product reuses Readest as its reader and cross-platform shell, then adds a learning domain governed by `6 Layers + Kernel Spine`.
+This directory records the implementation baseline for the English Learning OS fork. The product reuses Readest as its reader and cross-platform shell, then adds a learning system governed by six product capability layers, implementation dependency rings, and the Kernel Spine.
 
 ## Baseline
 
@@ -12,7 +12,20 @@ This directory records the implementation baseline for the English Learning OS f
 
 MVP means a smaller delivery scope, not weaker architecture. Domain code cannot import Readest, UI frameworks, databases, or provider SDKs. Existing Readest capabilities enter through adapters and stable ports.
 
-## Six layers
+## Architecture views
+
+[`ARCHITECTURE_BASELINE.md`](./ARCHITECTURE_BASELINE.md) is the canonical versioned engineering baseline. It preserves the original six product capability layers from the product design:
+
+1. Product Shell;
+2. Learning Experience;
+3. Domain Engines;
+4. Provider & Connector Runtime;
+5. Unified Data Layer;
+6. Resource & Rights Layer.
+
+The following implementation dependency rings govern source-code imports. They complement the six product layers; they do not replace or rename them.
+
+### Implementation dependency rings
 
 ```text
 Apps / Delivery
@@ -28,7 +41,7 @@ Adapters / internal plugins: Readest, FSRS, storage, providers
 Infrastructure: Next.js, SQLite/PostgreSQL, object storage, Docker
 ```
 
-The Kernel Spine owns typed registries, contract schemas, plugin lifecycle, and execution/event/job/policy/config/telemetry runtimes. Internal plugins follow `load → declare → validate → register → start → health → dispose`. Executable third-party plugins are not enabled in the MVP.
+The Kernel Spine crosses both views and owns typed registries, contract schemas, plugin lifecycle, and execution/event/job/policy/config/telemetry runtimes. Internal plugins follow `load → declare → validate → register → start → health → dispose`. Executable third-party plugins are not enabled in the MVP.
 
 ## Current vertical slice
 
@@ -60,7 +73,9 @@ Platform AI operations use `AI_GATEWAY_API_KEY` on the server. `AI_DAILY_ACTION_
 
 ## Not complete yet
 
-This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires browseable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, operator feedback triage tooling, broader resource limits, and public-beta hardening.
+This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires dictionary/translation convergence on the Action Runtime, lexical and annotation single-truth migrations, a versioned beta event contract, browseable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, operator feedback triage tooling, broader resource limits, and public-beta hardening.
+
+See [`MVP_STATUS.md`](./MVP_STATUS.md) for evidence-backed milestone status, the correction queue, and release gates.
 
 ## Verification
 
@@ -81,3 +96,7 @@ On constrained Windows hosts, TypeScript 7's native checker may require reduced 
 - Wrap existing behavior with an adapter and golden-master/contract tests before replacing it.
 - Keep provider types out of Domain and public contracts.
 - Record source, version, license, modified locations, and update strategy for every reused component.
+
+## Documentation truth
+
+Engineering architecture and implementation status are versioned in this directory. Research, PRD, validation, and historical planning documents outside the Fork remain inputs; when they conflict with implemented evidence or this baseline, record and reconcile the decision rather than silently drifting.
