@@ -14,7 +14,7 @@ This document reports implemented evidence, migration gaps, and release gates. I
 | M0 — Readest baseline | Substantially complete | Fork/upstream remotes, pinned commit, baseline tests, and reuse policy exist. A durable component/license provenance inventory still needs automation. |
 | M1 — Contracts + Kernel Spine | Substantially complete | Domain contracts, Ports, registries, manifests, lifecycle, and contract tests exist. Runtimes are intentionally production-wired only for current use cases. |
 | M2 — Identity, local data, optional sync | Partial | Stable guest identity and idempotent guest-to-account ownership linking exist. Learning-category replica sync, export, deletion, and explicit sync controls remain. |
-| M3 — Content + Context Panel | Partial | Readest selection conversion, Locator context, responsive Context Panel, local learning saves, AI and translation Action/Artifact flows, and source return exist. Dictionary action convergence, lexical graph persistence, annotation ownership, and re-anchoring remain. |
+| M3 — Content + Context Panel | Partial | Readest selection conversion, Locator context, responsive Context Panel, local learning saves, dictionary/translation/AI Action and Artifact flows, and source return exist. Lexical graph persistence, annotation ownership, and re-anchoring remain. Rich dictionary interactions continue through the original Readest surface. |
 | M4 — Practice + FSRS + Today | Substantially complete | Recognition, typing, spelling, cloze, immutable review events, FSRS scheduling, Today projection, delayed review, and return-to-source are implemented and tested. |
 | M5 — Progress, feedback, operations | Partial | Learning-event Progress projection and consent-gated feedback submission exist. Event contract reconciliation, product telemetry, operator triage, quotas dashboard, and OpenTelemetry operations remain. |
 | M6 — Public MVP hardening | Not started | Accessibility audit, weak-network validation, end-to-end data controls, backups, resource isolation, legal surfaces, staged rollout, and production evidence are outstanding. |
@@ -35,11 +35,10 @@ This document reports implemented evidence, migration gaps, and release gates. I
 
 These corrections have higher priority than adding new feature areas:
 
-1. **Action convergence:** translation now shares the AI Action/Artifact path; route Readest's rich dictionary results through the same contract without flattening or rewriting its providers.
-2. **Lexicon truth:** replace flattened learning-object persistence with the minimum viable Lexeme/Form/Sense/Expression/Occurrence graph while preserving current IDs and behavior.
-3. **Annotation truth:** adapt Readest BookNote into the owned Annotation contract, or migrate it; do not maintain two writable truths.
-4. **Event contract:** freeze versioned Domain/Learning/Telemetry event names and privacy-safe beta measurements before collecting public product signals.
-5. **Sync and data control:** add learning replica categories, conflict policies, export, deletion, and locator re-anchoring.
+1. **Lexicon truth:** replace flattened learning-object persistence with the minimum viable Lexeme/Form/Sense/Expression/Occurrence graph while preserving current IDs and behavior.
+2. **Annotation truth:** adapt Readest BookNote into the owned Annotation contract, or migrate it; do not maintain two writable truths.
+3. **Event contract:** freeze versioned Domain/Learning/Telemetry event names and privacy-safe beta measurements before collecting public product signals.
+4. **Sync and data control:** add learning replica categories, conflict policies, export, deletion, and locator re-anchoring.
 
 ## Verification evidence
 
@@ -57,7 +56,7 @@ Do not describe the product as public-ready until all of the following have evid
 
 - Readest reading behavior has no blocking regression.
 - The entire Content → Understand → Save → Practice → Review → Return journey passes in supported browsers and mobile layouts.
-- Dictionary, translation, and AI share the governed action contract.
+- Dictionary, translation, and AI share the governed action contract, with the rich dictionary surface retained as a presentation fallback.
 - Learning facts, annotation ownership, and lexical identity have one writable truth.
 - Guest-to-account migration and two-device sync do not lose IDs, locators, review facts, or notes.
 - Export and account deletion cover local/cloud records, stored assets, and derived artifacts.

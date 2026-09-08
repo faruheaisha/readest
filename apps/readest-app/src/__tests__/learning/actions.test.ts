@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   AIExplainActionHandler,
+  DictionaryLookupActionHandler,
   InMemoryArtifactCacheAdapter,
   TranslationActionHandler,
 } from '@/learning';
@@ -12,6 +13,7 @@ import {
 } from '@/learning/kernel';
 import type {
   AIProviderPort,
+  DictionaryProviderPort,
   PolicyPort,
   QuotaPort,
   TranslationProviderPort,
@@ -168,5 +170,47 @@ describe('learning translation action runtime', () => {
     expect(cached).toBe(first);
     expect(otherLocale.language).toBe('ja');
     expect(translate).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('learning dictionary action runtime', () => {
+  it('routes lookup through its provider and caches by provider set and selection', async () => {
+    const lookup = vi.fn(
+      async (): Promise<Artifact> => ({
+        ...makeArtifact('readest-dictionary', 'en'),
+        actionId: 'dictionary.lookup',
+        kind: 'dictionary',
+        content: 'A contextual definition.',
+      }),
+    );
+    const provider: DictionaryProviderPort = {
+      resultVersion: 'dictionary-v1',
+      describe: () => ({
+        id: 'readest-dictionary',
+        version: '1.0.0',
+        model: 'dictionary-a,dictionary-b',
+      }),
+      isAvailable: async () => true,
+      lookup,
+    };
+    const providers = new ProviderRouter<DictionaryProviderPort>();
+    providers.register('dictionary.lookup', provider);
+    const handler = new DictionaryLookupActionHandler({
+      providers,
+      cache: new InMemoryArtifactCacheAdapter(),
+    });
+    const action = {
+      id: 'dictionary.lookup',
+      capability: 'dictionary.lookup',
+      title: 'Meaning',
+      inputKinds: ['word', 'sense', 'expression'] as const,
+      outputKind: 'dictionary' as const,
+    };
+
+    const first = await handler.execute(selection, { action });
+    const cached = await handler.execute(selection, { action });
+
+    expect(cached).toBe(first);
+    expect(lookup).toHaveBeenCalledOnce();
   });
 });

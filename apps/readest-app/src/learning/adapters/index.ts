@@ -5,6 +5,7 @@ export * from './readest-selection';
 export * from './activities';
 export * from './readest-ai';
 export * from './readest-translation';
+export * from './readest-dictionary';
 export * from './action-policy';
 export * from './readest-identity';
 export * from './feedback';

@@ -7,6 +7,8 @@ import { migrate } from '@/services/database/migrate';
 import type { DatabaseService } from '@/types/database';
 import { DEFAULT_AI_SETTINGS } from '@/services/ai/constants';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useCustomDictionaryStore } from '@/store/customDictionaryStore';
+import { getEnabledProviders } from '@/services/dictionaries/registry';
 import {
   CapabilityPolicyAdapter,
   createActivityEngines,
@@ -16,12 +18,14 @@ import {
   ProviderEnforcedQuotaAdapter,
   ReadestLearningDatabaseAdapter,
   ReadestAIProviderAdapter,
+  ReadestDictionaryProviderAdapter,
   ReadestIdentityAdapter,
   ReadestTranslationProviderAdapter,
 } from '../adapters';
 import {
   ActivityPracticeService,
   AIExplainActionHandler,
+  DictionaryLookupActionHandler,
   LearningOrchestrator,
   TranslationActionHandler,
 } from '../application';
@@ -33,7 +37,13 @@ import {
   PolicyRuntime,
   ProviderRouter,
 } from '../kernel';
-import type { AIProviderPort, FeedbackPort, IdentityPort, TranslationProviderPort } from '../ports';
+import type {
+  AIProviderPort,
+  DictionaryProviderPort,
+  FeedbackPort,
+  IdentityPort,
+  TranslationProviderPort,
+} from '../ports';
 
 export interface LearningRuntime {
   database: DatabaseService;
@@ -43,6 +53,7 @@ export interface LearningRuntime {
   practice: ActivityPracticeService;
   actions: ActionRegistry;
   aiProviders: ProviderRouter<AIProviderPort>;
+  dictionaryProviders: ProviderRouter<DictionaryProviderPort>;
   translationProviders: ProviderRouter<TranslationProviderPort>;
   execution: ExecutionRuntime;
   identity: IdentityPort;
@@ -54,6 +65,7 @@ const runtimes = new WeakMap<AppService, Promise<LearningRuntime>>();
 
 export const createLearningRuntime = async (
   database: DatabaseService,
+  appService: AppService,
 ): Promise<LearningRuntime> => {
   await migrate(database, getMigrations('learning'));
   const repository = new ReadestLearningDatabaseAdapter(database);
@@ -85,6 +97,13 @@ export const createLearningRuntime = async (
     inputKinds: ['word', 'sense', 'expression', 'sentence'],
     outputKind: 'translation',
   });
+  actions.register('dictionary.lookup', {
+    id: 'dictionary.lookup',
+    capability: 'dictionary.lookup',
+    title: 'Meaning',
+    inputKinds: ['word', 'sense', 'expression'],
+    outputKind: 'dictionary',
+  });
   const aiProviders = new ProviderRouter<AIProviderPort>();
   aiProviders.register(
     'ai.explain',
@@ -98,11 +117,19 @@ export const createLearningRuntime = async (
     'translation.execute',
     new ReadestTranslationProviderAdapter(() => useSettingsStore.getState().settings),
   );
+  const dictionaryProviders = new ProviderRouter<DictionaryProviderPort>();
+  dictionaryProviders.register(
+    'dictionary.lookup',
+    new ReadestDictionaryProviderAdapter(() => {
+      const { dictionaries, settings } = useCustomDictionaryStore.getState();
+      return getEnabledProviders({ settings, dictionaries, fs: appService });
+    }),
+  );
   const execution = new ExecutionRuntime(
     actions,
     new ContractSchemaRegistry(),
     new PolicyRuntime(
-      new CapabilityPolicyAdapter(['ai.explain', 'translation.execute']),
+      new CapabilityPolicyAdapter(['ai.explain', 'translation.execute', 'dictionary.lookup']),
       new ProviderEnforcedQuotaAdapter(),
     ),
   );
@@ -120,12 +147,20 @@ export const createLearningRuntime = async (
       cache: repository,
     }),
   );
+  execution.register(
+    'dictionary.lookup',
+    new DictionaryLookupActionHandler({
+      providers: dictionaryProviders,
+      cache: repository,
+    }),
+  );
   return {
     database,
     repository,
     activities,
     actions,
     aiProviders,
+    dictionaryProviders,
     translationProviders,
     execution,
     identity,
@@ -151,7 +186,7 @@ export const getLearningRuntime = (appService: AppService): Promise<LearningRunt
   if (existing) return existing;
   const runtime = appService
     .openDatabase('learning', 'learning.db', 'Data')
-    .then(createLearningRuntime)
+    .then((database) => createLearningRuntime(database, appService))
     .catch((error: unknown) => {
       runtimes.delete(appService);
       throw error;

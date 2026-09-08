@@ -33,25 +33,33 @@ export const LearningContextPanel = ({
   const [saving, setSaving] = useState(false);
   const [explanation, setExplanation] = useState<Artifact | null>(null);
   const [translation, setTranslation] = useState<Artifact | null>(null);
+  const [meaning, setMeaning] = useState<Artifact | null>(null);
   const [explaining, setExplaining] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
   const [explainError, setExplainError] = useState<string | null>(null);
   const [translationError, setTranslationError] = useState<string | null>(null);
+  const [meaningError, setMeaningError] = useState<string | null>(null);
   const explainRequest = useRef(0);
   const translationRequest = useRef(0);
+  const meaningRequest = useRef(0);
   const targetLanguage = settings.globalReadSettings?.translateTargetLang || 'zh-CN';
 
   useEffect(() => {
     explainRequest.current += 1;
     translationRequest.current += 1;
+    meaningRequest.current += 1;
     setKind(selection.text.trim().includes(' ') ? 'expression' : 'word');
     setSaved(false);
     setExplanation(null);
     setTranslation(null);
+    setMeaning(null);
     setExplaining(false);
     setTranslating(false);
+    setLookingUp(false);
     setExplainError(null);
     setTranslationError(null);
+    setMeaningError(null);
   }, [selection]);
 
   const save = async (practice: boolean) => {
@@ -134,6 +142,32 @@ export const LearningContextPanel = ({
     }
   };
 
+  const lookupMeaning = async () => {
+    if (!runtime || lookingUp) return;
+    const request = ++meaningRequest.current;
+    setLookingUp(true);
+    setMeaningError(null);
+    try {
+      const subjectId = await getUserID();
+      const result = await runtime.execution.execute<Artifact>({
+        actionId: 'dictionary.lookup',
+        selection,
+        subjectId,
+        idempotencyKey:
+          typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : `dictionary-${Date.now()}`,
+      });
+      if (request === meaningRequest.current) setMeaning(result);
+    } catch {
+      if (request === meaningRequest.current) {
+        setMeaningError(_('No definition was found in the enabled dictionaries.'));
+      }
+    } finally {
+      if (request === meaningRequest.current) setLookingUp(false);
+    }
+  };
+
   return (
     <aside
       aria-label={_('Learning context')}
@@ -155,8 +189,13 @@ export const LearningContextPanel = ({
             {_('Understand')}
           </h3>
           <div className='mt-3 grid grid-cols-2 gap-3'>
-            <button type='button' className='btn btn-outline btn-sm' onClick={onDictionary}>
-              {_('Meaning')}
+            <button
+              type='button'
+              className='btn btn-outline btn-sm'
+              disabled={loading || lookingUp}
+              onClick={() => void lookupMeaning()}
+            >
+              {lookingUp ? _('Looking up…') : _('Meaning')}
             </button>
             <button
               type='button'
@@ -187,6 +226,15 @@ export const LearningContextPanel = ({
               </p>
             </div>
           )}
+          {meaning && (
+            <div className='bg-base-200/60 mt-3 rounded-2xl p-4'>
+              <p className='text-base-content/50 text-xs font-semibold uppercase'>{_('Meaning')}</p>
+              <p className='mt-2 whitespace-pre-wrap text-sm'>{meaning.content}</p>
+              <button type='button' className='btn btn-ghost btn-xs mt-3' onClick={onDictionary}>
+                {_('Open full dictionary')}
+              </button>
+            </div>
+          )}
           {translation && (
             <div className='bg-base-200/60 mt-3 rounded-2xl p-4'>
               <p className='text-base-content/50 text-xs font-semibold uppercase'>
@@ -205,6 +253,16 @@ export const LearningContextPanel = ({
             <p role='alert' className='text-warning mt-3 text-sm'>
               {translationError}
             </p>
+          )}
+          {meaningError && (
+            <div className='mt-3'>
+              <p role='alert' className='text-warning text-sm'>
+                {meaningError}
+              </p>
+              <button type='button' className='btn btn-ghost btn-xs mt-2' onClick={onDictionary}>
+                {_('Open full dictionary')}
+              </button>
+            </div>
           )}
         </section>
         <section>

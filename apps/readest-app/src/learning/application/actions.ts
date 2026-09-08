@@ -1,5 +1,10 @@
 import type { Artifact, SelectionContext } from '../domain';
-import type { AIProviderPort, ArtifactCachePort, TranslationProviderPort } from '../ports';
+import type {
+  AIProviderPort,
+  ArtifactCachePort,
+  DictionaryProviderPort,
+  TranslationProviderPort,
+} from '../ports';
 import type { ActionHandler } from '../kernel/runtimes';
 import { ProviderRouter } from '../kernel/registry';
 
@@ -97,6 +102,37 @@ export class TranslationActionHandler implements ActionHandler<Artifact> {
     if (cached) return cached;
 
     const artifact = await provider.translate(selection, context.locale);
+    await this.dependencies.cache.putArtifact(key, artifact);
+    return artifact;
+  }
+}
+
+export class DictionaryLookupActionHandler implements ActionHandler<Artifact> {
+  constructor(
+    private readonly dependencies: {
+      providers: ProviderRouter<DictionaryProviderPort>;
+      cache: ArtifactCachePort;
+    },
+  ) {}
+
+  async execute(
+    selection: SelectionContext,
+    context: { action: { id: string; capability: string } },
+  ): Promise<Artifact> {
+    const provider = await this.dependencies.providers.resolve(context.action.capability);
+    const metadata = await provider.describe();
+    const key = createArtifactCacheKey({
+      actionId: context.action.id,
+      selection,
+      promptVersion: provider.resultVersion,
+      providerId: metadata.id,
+      model: metadata.model,
+      locale: selection.language,
+    });
+    const cached = await this.dependencies.cache.getArtifact(key);
+    if (cached) return cached;
+
+    const artifact = await provider.lookup(selection);
     await this.dependencies.cache.putArtifact(key, artifact);
     return artifact;
   }

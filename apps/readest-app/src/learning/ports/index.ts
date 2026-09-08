@@ -53,6 +53,9 @@ export interface LexiconRepositoryPort {
 }
 
 export interface DictionaryProviderPort {
+  readonly resultVersion: string;
+  describe(): Awaitable<ProviderMetadata>;
+  isAvailable(): Promise<boolean>;
   lookup(selection: SelectionContext): Promise<Artifact>;
 }
 

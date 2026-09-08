@@ -213,7 +213,7 @@ Reuse an engine, algorithm, provider, or standard. Do not embed a second applica
 
 The following are explicit migration gaps. They do not redefine the target architecture:
 
-- Translation now uses the complete Action Runtime path. Dictionary still uses a temporary Readest UI callback while its rich-result providers are adapted without flattening their output.
+- Translation and dictionary lookup now use the complete Action Runtime path. Dictionary Artifacts keep a portable, inert text representation; Readest's existing rich provider surface remains an explicit presentation fallback for images, links, custom styles, and OS dictionary handoff.
 - Learning-object persistence is currently flattened and does not yet implement the Lexeme/Form/Sense/Expression/Occurrence graph.
 - The new annotation contract and table are not yet connected to Readest BookNote; they must not become a second annotation truth.
 - Plugin, job, event, config, and telemetry runtimes are only wired where the current vertical slice uses them.
