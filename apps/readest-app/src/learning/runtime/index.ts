@@ -11,6 +11,7 @@ import {
   CapabilityPolicyAdapter,
   createActivityEngines,
   FsrsMemorySchedulerAdapter,
+  HttpFeedbackAdapter,
   PlatformAIProviderAdapter,
   ProviderEnforcedQuotaAdapter,
   ReadestLearningDatabaseAdapter,
@@ -30,7 +31,7 @@ import {
   PolicyRuntime,
   ProviderRouter,
 } from '../kernel';
-import type { AIProviderPort, IdentityPort } from '../ports';
+import type { AIProviderPort, FeedbackPort, IdentityPort } from '../ports';
 
 export interface LearningRuntime {
   database: DatabaseService;
@@ -42,6 +43,7 @@ export interface LearningRuntime {
   providers: ProviderRouter<AIProviderPort>;
   execution: ExecutionRuntime;
   identity: IdentityPort;
+  feedback: FeedbackPort;
   guestId: string;
 }
 
@@ -58,6 +60,11 @@ export const createLearningRuntime = async (
       : `guest-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
   );
   const identity = new ReadestIdentityAdapter({ identities: repository });
+  const feedback = new HttpFeedbackAdapter({
+    guestId: () => guestId,
+    accessToken: () =>
+      typeof window === 'undefined' ? null : window.localStorage.getItem('token'),
+  });
   const activities = new ActivityRegistry();
   for (const engine of createActivityEngines()) activities.registerEngine(engine);
   const actions = new ActionRegistry();
@@ -99,6 +106,7 @@ export const createLearningRuntime = async (
     providers,
     execution,
     identity,
+    feedback,
     guestId,
     orchestrator: new LearningOrchestrator({
       lexicon: repository,

@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { FiBarChart2, FiBookOpen, FiCalendar, FiRotateCcw } from 'react-icons/fi';
+import { FiBarChart2, FiBookOpen, FiCalendar, FiMessageSquare, FiRotateCcw } from 'react-icons/fi';
 import { useTranslation } from '@/hooks/useTranslation';
 
 const navigation = [
@@ -59,9 +59,19 @@ export const LearningShell = ({
         </nav>
       </aside>
       <main className='mx-auto w-full max-w-5xl px-5 pt-8 pb-24 md:px-10 md:py-12'>
-        <header className='mb-8'>
-          <h1 className='text-3xl font-semibold tracking-tight'>{_(title)}</h1>
-          <p className='text-base-content/60 mt-2 max-w-2xl'>{_(description)}</p>
+        <header className='mb-8 flex items-start justify-between gap-4'>
+          <div>
+            <h1 className='text-3xl font-semibold tracking-tight'>{_(title)}</h1>
+            <p className='text-base-content/60 mt-2 max-w-2xl'>{_(description)}</p>
+          </div>
+          <Link
+            href='/feedback'
+            aria-current={pathname === '/feedback' ? 'page' : undefined}
+            className='btn btn-ghost btn-sm shrink-0 gap-2'
+          >
+            <FiMessageSquare className='h-4 w-4' aria-hidden='true' />
+            <span className='hidden sm:inline'>{_('Feedback')}</span>
+          </Link>
         </header>
         {children}
       </main>

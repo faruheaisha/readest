@@ -83,3 +83,27 @@ export const resourcePackManifestSchema = z.strictObject({
     sourceUrl: z.url().optional(),
   }),
 });
+
+export const feedbackSubmissionSchema = z
+  .strictObject({
+    guestId: z.string().min(1).max(128),
+    message: z.string().trim().min(3).max(4_000),
+    diagnosticConsent: z.boolean(),
+    diagnostics: z
+      .strictObject({
+        route: z.string().max(256).optional(),
+        locale: languageTagSchema.optional(),
+        platform: z.enum(['web', 'windows', 'macos', 'linux', 'android', 'ios']).optional(),
+        appVersion: z.string().max(64).optional(),
+      })
+      .optional(),
+  })
+  .superRefine((input, context) => {
+    if (!input.diagnosticConsent && input.diagnostics !== undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['diagnostics'],
+        message: 'Diagnostics require explicit consent',
+      });
+    }
+  });

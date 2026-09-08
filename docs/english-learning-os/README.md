@@ -51,6 +51,7 @@ The first implementation slice includes:
 - durable local Artifact caching keyed by action, full selection context, prompt version, provider, model, and locale;
 - an `IdentityPort` adapter over Readest's existing Supabase session plus a stable local guest identity;
 - idempotent guest-to-account ownership linking that preserves every learning object ID and refuses silent reassignment to another account;
+- a consent-gated feedback route for guests and accounts, with server-derived account ownership and no reading content in diagnostics;
 - English and Simplified Chinese UI copy.
 
 The Context Panel delegates meaning and translation back to Readest's existing providers. It does not duplicate dictionary, translation, or model clients. A configured user provider is preferred; signed-in users otherwise receive the operator-funded platform allowance. BYOK and local models do not consume that allowance.
@@ -59,7 +60,7 @@ Platform AI operations use `AI_GATEWAY_API_KEY` on the server. `AI_DAILY_ACTION_
 
 ## Not complete yet
 
-This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires browseable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, feedback/operator tooling, broader resource limits, and public-beta hardening.
+This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires browseable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, operator feedback triage tooling, broader resource limits, and public-beta hardening.
 
 ## Verification
 

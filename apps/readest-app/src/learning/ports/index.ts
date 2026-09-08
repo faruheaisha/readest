@@ -193,9 +193,14 @@ export interface PaymentPort {
 
 export interface FeedbackPort {
   submit(input: {
-    subjectId?: string;
     message: string;
     diagnosticConsent: boolean;
+    diagnostics?: {
+      route?: string;
+      locale?: string;
+      platform?: string;
+      appVersion?: string;
+    };
   }): Promise<string>;
 }
 

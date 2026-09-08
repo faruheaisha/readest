@@ -97,6 +97,7 @@ describe('docker db bootstrap (#5550)', () => {
     ['the claim_inbox_item RPC', /CREATE OR REPLACE FUNCTION public\.claim_inbox_item/],
     ['the book_shares table', /CREATE TABLE IF NOT EXISTS public\.book_shares\b/],
     ['the reading stats tables', /CREATE TABLE IF NOT EXISTS public\.stat_books\b/],
+    ['the learning feedback table', /CREATE TABLE IF NOT EXISTS public\.learning_feedback\b/],
   ])('creates %s on first boot', (_label, pattern) => {
     expect(bootstrapSql()).toMatch(pattern);
   });
