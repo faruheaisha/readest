@@ -16,7 +16,7 @@ This document reports implemented evidence, migration gaps, and release gates. I
 | M2 — Identity, local data, optional sync | Partial | Stable guest identity and idempotent guest-to-account ownership linking exist. Learning-category replica sync, export, deletion, and explicit sync controls remain. |
 | M3 — Content + Context Panel | Partial | Readest selection conversion, Locator context, responsive Context Panel, local learning saves, dictionary/translation/AI Action and Artifact flows, and source return exist. Lexical graph persistence, annotation ownership, and re-anchoring remain. Rich dictionary interactions continue through the original Readest surface. |
 | M4 — Practice + FSRS + Today | Substantially complete | Recognition, typing, spelling, cloze, immutable review events, FSRS scheduling, Today projection, delayed review, and return-to-source are implemented and tested. |
-| M5 — Progress, feedback, operations | Partial | Versioned Learning/Telemetry contracts, privacy-gated telemetry delivery, Learning-event Progress projection, and consent-gated feedback submission exist. Content import/open and network instrumentation, operator triage, quotas dashboard, and OpenTelemetry operations remain. |
+| M5 — Progress, feedback, operations | Partial | The minimal Beta evidence list, privacy-gated telemetry delivery, Learning-event Progress projection, and consent-gated feedback submission exist. Metric queries, operator triage, quotas dashboard, and OpenTelemetry operations remain. |
 | M6 — Public MVP hardening | Not started | Accessibility audit, weak-network validation, end-to-end data controls, backups, resource isolation, legal surfaces, staged rollout, and production evidence are outstanding. |
 
 ## Completed implementation slices
@@ -34,6 +34,8 @@ This document reports implemented evidence, migration gaps, and release gates. I
 | `b24f7136` | Readest dictionary providers through the governed Action/Artifact runtime with rich-surface fallback |
 | `3a6f9bb1` | Unified dictionary, translation, and AI Context Panel action evidence recorded in the implementation baseline |
 | `b58d2ff0` | Versioned Beta evidence contracts, privacy-safe telemetry runtime, source-return facts, and legacy event migration |
+| `9acd1d8b` | Privacy-minimized content import lifecycle and successfully initialized Reader-open evidence |
+| `8ca330ba` | One-per-session Web network timing reduced to coarse TTFB/API latency buckets |
 
 ## Correction queue
 
@@ -41,18 +43,17 @@ These corrections have higher priority than adding new feature areas:
 
 1. **Lexicon truth:** replace flattened learning-object persistence with the minimum viable Lexeme/Form/Sense/Expression/Occurrence graph while preserving current IDs and behavior.
 2. **Annotation truth:** adapt Readest BookNote into the owned Annotation contract, or migrate it; do not maintain two writable truths.
-3. **Event coverage:** the versioned Learning/Telemetry contracts and privacy boundary are frozen at `1.0.0`; connect the remaining `content_import_*`, `content_opened`, and `network_sample` signals before interpreting activation or retention.
-4. **Sync and data control:** add learning replica categories, conflict policies, export, deletion, and locator re-anchoring.
+3. **Sync and data control:** add learning replica categories, conflict policies, export, deletion, and locator re-anchoring.
 
 ## Verification evidence
 
 The latest implementation validation completed successfully before this documentation calibration:
 
-- 15 learning/feedback test files, 45 tests passed.
+- 17 learning/feedback/library test files, 53 tests passed.
 - TypeScript and Biome lint passed across the Readest app.
 - Web production build passed.
 
-The event evidence includes strict-schema rejection of selected text, separate pseudonymous telemetry identity, idempotent review facts, and a real SQLite migration from legacy save/review event shapes. Event-contract completion is deliberately not claimed until import, open, and network signals are connected at their Readest source boundaries.
+The minimal Beta event list is now connected: strict schemas reject selected text; analysis uses a separate pseudonymous identity; review facts are idempotent; legacy save/review facts have a tested SQLite migration; import/open signals use existing Readest orchestration boundaries; and one Web network sample per session stores only coarse latency buckets. This proves contract and integration behavior, not that production analytics, target-network performance, or product hypotheses have been validated.
 
 This is evidence for the new learning slice and whole-app static/build compatibility. It is not evidence that every upstream platform test, multi-device sync path, target network, or production recovery scenario has passed.
 

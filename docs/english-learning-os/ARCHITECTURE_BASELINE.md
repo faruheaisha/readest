@@ -218,7 +218,7 @@ The following are explicit migration gaps. They do not redefine the target archi
 - The new annotation contract and table are not yet connected to Readest BookNote; they must not become a second annotation truth.
 - Plugin, job, config, and telemetry runtimes are only wired where the current vertical slice uses them. The Event Runtime now persists and projects versioned save, Activity, memory-review, and source-return facts.
 - Replica-sync learning categories, export/deletion, conflict rules, and locator re-anchoring are incomplete.
-- Beta Learning/Telemetry names and payload privacy are reconciled at contract version `1.0.0`; import, content-open, and network signals still need integration at Readest source boundaries before staged public access.
+- Beta Learning/Telemetry names and payload privacy are reconciled at contract version `1.0.0`; the minimal client event list is integrated, but production metric queries and target-network evidence remain release work rather than architecture alternatives.
 
 These gaps are tracked in `MVP_STATUS.md` and must be removed in risk order rather than hidden behind additional features.
 
