@@ -54,6 +54,8 @@ The first implementation slice includes:
 - a Learning Orchestrator for semantic deduplication, occurrences, review scheduling, and Today projections;
 - a canonical Lexeme/Form/Sense/Expression graph behind `LexiconRepositoryPort`, with stable SavedLearningObject review targets and source Occurrences;
 - transactional SQLite graph writes plus a compatibility migration that preserves existing learning-object and review IDs; unresolved legacy/new Sense targets are never assigned fabricated definitions;
+- one Annotation repository contract over Readest's existing `BookConfig.booknotes` truth, preserving highlight styles, sync metadata, compatibility pointers, tombstones, and existing reader/notebook/import/export behavior;
+- stable content-version IDs derived from Readest's source-file hash rather than mutable book-configuration timestamps;
 - conversion from Readest text selections to stable `SelectionContext` and Readium-style locators;
 - a Learn action in the existing reader toolbar;
 - responsive Context Panel, Today, Review, and Progress interfaces;
@@ -82,7 +84,7 @@ Platform AI operations use `AI_GATEWAY_API_KEY` on the server. `AI_DAILY_ACTION_
 
 ## Not complete yet
 
-This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires annotation single-truth migration, explicit dictionary-selected Sense enrichment, production metric queries, browseable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, operator feedback triage tooling, broader resource limits, and public-beta hardening.
+This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires Context Panel note composition, explicit dictionary-selected Sense enrichment, production metric queries, browseable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, operator feedback triage tooling, broader resource limits, and public-beta hardening.
 
 See [`MVP_STATUS.md`](./MVP_STATUS.md) for evidence-backed milestone status, the correction queue, and release gates.
 
