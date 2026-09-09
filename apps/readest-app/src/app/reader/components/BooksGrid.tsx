@@ -27,6 +27,7 @@ import HintInfo from './HintInfo';
 import ReadingRuler from './ReadingRuler';
 import DoubleBorder from './DoubleBorder';
 import ReadingStatsTracker from './ReadingStatsTracker';
+import { LearningContentOpenTracker } from '@/components/learning/LearningContentOpenTracker';
 
 interface BooksGridProps {
   bookKeys: string[];
@@ -278,6 +279,7 @@ const BookCellInner: React.FC<BookCellProps> = ({
         gridInsets={gridInsets}
       />
       <ReadingStatsTracker bookKey={bookKey} />
+      <LearningContentOpenTracker bookKey={bookKey} ready={viewState?.inited === true} />
     </div>
   );
 };

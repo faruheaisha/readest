@@ -88,7 +88,7 @@ const WebSourcesDialog: React.FC<WebSourcesDialogProps> = ({ isOpen, onClose, on
         onClose();
       } else if (result.openBookHash) {
         onClose();
-        navigateToReader(router, [result.openBookHash]);
+        navigateToReader(router, [result.openBookHash], 'eloSource=import');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

@@ -76,6 +76,7 @@ export const useOpenBook = ({ setLoading, handleBookDownload }: UseOpenBookOptio
       const available = await makeBookAvailable(book);
       if (!available) return;
       const params = new URLSearchParams();
+      params.set('eloSource', options?.highlightSearchResult ? 'search' : 'library');
       if (cfi) params.set('cfi', cfi);
       if (cfi && options?.highlightSearchResult) params.set('highlight', 'search');
       const queryParams = params.size ? params.toString() : undefined;

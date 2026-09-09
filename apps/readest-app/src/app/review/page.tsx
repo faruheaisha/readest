@@ -168,7 +168,7 @@ export default function ReviewPage() {
                     navigateToReader(
                       router,
                       [target.bookHash],
-                      `cfi=${encodeURIComponent(target.location)}`,
+                      `cfi=${encodeURIComponent(target.location)}&eloSource=review`,
                     );
                   if (!runtime) {
                     navigate();

@@ -439,7 +439,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
         if (book) {
           setLibrary(libraryBooks);
           appService.saveLibraryBooks(libraryBooks);
-          navigateToReader(router, [book.hash]);
+          navigateToReader(router, [book.hash], 'eloSource=import');
         }
       };
       importBook();
@@ -479,7 +479,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
       showReaderWindow(appService, readerIds);
     } else {
       setTimeout(() => setLoading(true), 200);
-      navigateToReader(router, readerIds);
+      navigateToReader(router, readerIds, 'eloSource=library');
     }
   };
 

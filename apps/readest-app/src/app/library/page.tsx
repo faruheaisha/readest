@@ -72,6 +72,7 @@ import { useClipUrlIngress } from '@/hooks/useClipUrlIngress';
 import { useWebBrowserDownloads } from '@/hooks/useWebBrowserDownloads';
 import { useKeyDownActions } from '@/hooks/useKeyDownActions';
 import { SelectedFile, useFileSelector } from '@/hooks/useFileSelector';
+import { getLearningRuntime } from '@/learning/runtime';
 import { lockScreenOrientation, selectDirectory, showFilePicker } from '@/utils/bridge';
 import { useAndroidPickedBooks } from '@/hooks/useAndroidFilePicker';
 import { requestStoragePermission } from '@/utils/permission';
@@ -960,6 +961,12 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       const file = selectedFile.file || selectedFile.path;
       if (!file) return null;
       if (!appService) return null;
+      const learningRuntime = await getLearningRuntime(appService).catch(() => null);
+      const importEvidence = learningRuntime?.evidence.startContentImport({
+        name: selectedFile.name || (typeof file === 'string' ? getFilename(file) : file.name),
+        sizeBytes: typeof file === 'string' ? undefined : file.size,
+        method: 'local_file',
+      });
       try {
         const { path, basePath } = selectedFile;
         // `groupId` is treated as a tri-state:
@@ -997,10 +1004,21 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
           },
           { appService, settings: liveSettings, isLoggedIn: !!user, appBooksPrefix },
         );
-        if (!book) return null;
+        if (!book) {
+          if (importEvidence) {
+            await learningRuntime?.evidence.failContentImport(importEvidence, 'unknown', 'ingest');
+          }
+          return null;
+        }
+        if (importEvidence) {
+          await learningRuntime?.evidence.completeContentImport(importEvidence, book.hash);
+        }
         successfulImports.push(book.title);
         return book;
       } catch (error) {
+        if (importEvidence) {
+          await learningRuntime?.evidence.failContentImport(importEvidence, 'unknown', 'ingest');
+        }
         const filename = typeof file === 'string' ? file : file.name;
         if (typeof file === 'string') failedPaths.push(file);
         const baseFilename = getFilename(filename);

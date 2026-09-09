@@ -27,6 +27,7 @@ import {
 import {
   ActivityPracticeService,
   AIExplainActionHandler,
+  BetaEvidenceService,
   DictionaryLookupActionHandler,
   LearningOrchestrator,
   TranslationActionHandler,
@@ -62,6 +63,7 @@ export interface LearningRuntime {
   dictionaryProviders: ProviderRouter<DictionaryProviderPort>;
   translationProviders: ProviderRouter<TranslationProviderPort>;
   execution: ExecutionRuntime;
+  evidence: BetaEvidenceService;
   events: LearningEventPort;
   telemetry: TelemetryRuntime;
   identity: IdentityPort;
@@ -101,6 +103,7 @@ export const createLearningRuntime = async (
   const clientSessionId = getClientSessionId();
   const eventContext = () => ({ clientSessionId, actorId: guestId });
   const telemetry = new TelemetryRuntime(new ReadestTelemetryAdapter());
+  const evidence = new BetaEvidenceService({ telemetry, context: eventContext });
   const eventRuntime = new EventRuntime();
   const events = new LearningEventRuntimeAdapter(repository, eventRuntime);
   for (const type of [
@@ -210,6 +213,7 @@ export const createLearningRuntime = async (
     dictionaryProviders,
     translationProviders,
     execution,
+    evidence,
     events,
     telemetry,
     identity,
