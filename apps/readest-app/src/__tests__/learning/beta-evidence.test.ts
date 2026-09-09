@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { BetaEvidenceService, classifyContentType, classifySize } from '@/learning/application';
+import {
+  BetaEvidenceService,
+  classifyContentType,
+  classifyLatency,
+  classifySize,
+} from '@/learning/application';
 import type { TelemetryEvent } from '@/learning/domain';
 
 describe('BetaEvidenceService', () => {
@@ -35,6 +40,26 @@ describe('BetaEvidenceService', () => {
     expect(JSON.stringify(events)).not.toContain('private-medical-paper');
   });
 
+  it('records one coarse network sample per client session', async () => {
+    const events: TelemetryEvent[] = [];
+    const evidence = new BetaEvidenceService({
+      telemetry: { capture: async (event) => void events.push(event) },
+      context: () => ({ clientSessionId: 'session-1', actorId: 'guest-1' }),
+      now: () => new Date('2026-09-09T12:00:00.000Z'),
+    });
+
+    await evidence.recordNetworkSample({ ttfbMs: 420, apiLatencyMs: undefined });
+    await evidence.recordNetworkSample({ ttfbMs: 2_000, apiLatencyMs: 2_000 });
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        id: 'telemetry:network-sample:session-1',
+        name: 'network_sample',
+        properties: { ttfbBucket: 'acceptable', apiLatencyBucket: 'unknown' },
+      }),
+    ]);
+  });
+
   it('deduplicates one mounted reader instance but records later opens', async () => {
     const events: TelemetryEvent[] = [];
     const evidence = new BetaEvidenceService({
@@ -59,5 +84,8 @@ describe('beta evidence buckets', () => {
     expect(classifySize(undefined)).toBe('unknown');
     expect(classifySize(1024 * 1024)).toBe('small');
     expect(classifySize(50 * 1024 * 1024)).toBe('large');
+    expect(classifyLatency(250)).toBe('fast');
+    expect(classifyLatency(1_500)).toBe('slow');
+    expect(classifyLatency(null)).toBe('failed');
   });
 });

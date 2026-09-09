@@ -5,6 +5,7 @@ import type { AppService } from '@/types/system';
 import { getMigrations } from '@/services/database/migrations';
 import { migrate } from '@/services/database/migrate';
 import type { DatabaseService } from '@/types/database';
+import { isWebAppPlatform } from '@/services/environment';
 import { DEFAULT_AI_SETTINGS } from '@/services/ai/constants';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useCustomDictionaryStore } from '@/store/customDictionaryStore';
@@ -88,6 +89,36 @@ const getClientSessionId = (): string => {
   return created;
 };
 
+const readBrowserNetworkSample = (): {
+  ttfbMs?: number;
+  apiLatencyMs?: number;
+} => {
+  if (typeof performance === 'undefined' || typeof window === 'undefined') return {};
+  const navigation = performance.getEntriesByType('navigation')[0] as
+    | PerformanceNavigationTiming
+    | undefined;
+  const ttfbMs =
+    navigation && navigation.responseStart >= navigation.requestStart
+      ? navigation.responseStart - navigation.requestStart
+      : undefined;
+  const apiResource = (performance.getEntriesByType('resource') as PerformanceResourceTiming[])
+    .slice()
+    .reverse()
+    .find((entry) => {
+      try {
+        const url = new URL(entry.name);
+        return url.origin === window.location.origin && url.pathname.startsWith('/api/');
+      } catch {
+        return false;
+      }
+    });
+  const apiLatencyMs = apiResource && apiResource.duration >= 0 ? apiResource.duration : undefined;
+  return {
+    ...(ttfbMs === undefined ? {} : { ttfbMs }),
+    ...(apiLatencyMs === undefined ? {} : { apiLatencyMs }),
+  };
+};
+
 export const createLearningRuntime = async (
   database: DatabaseService,
   appService: AppService,
@@ -104,6 +135,11 @@ export const createLearningRuntime = async (
   const eventContext = () => ({ clientSessionId, actorId: guestId });
   const telemetry = new TelemetryRuntime(new ReadestTelemetryAdapter());
   const evidence = new BetaEvidenceService({ telemetry, context: eventContext });
+  // One coarse same-origin sample per client session. URLs, IPs, filenames, and
+  // reading content never enter the event; raw timings are reduced to buckets.
+  if (typeof window !== 'undefined' && isWebAppPlatform()) {
+    queueMicrotask(() => void evidence.recordNetworkSample(readBrowserNetworkSample()));
+  }
   const eventRuntime = new EventRuntime();
   const events = new LearningEventRuntimeAdapter(repository, eventRuntime);
   for (const type of [

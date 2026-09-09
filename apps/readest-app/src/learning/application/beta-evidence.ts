@@ -13,6 +13,7 @@ export type ImportFailureClass =
   | 'storage'
   | 'user_cancel'
   | 'unknown';
+export type LatencyBucket = 'fast' | 'acceptable' | 'slow' | 'failed' | 'unknown';
 
 export interface ContentImportEvidence {
   id: string;
@@ -47,12 +48,26 @@ export const classifySize = (bytes?: number): 'tiny' | 'small' | 'medium' | 'lar
   return 'large';
 };
 
+export const classifyLatency = (
+  milliseconds?: number | null,
+  thresholds: { fast: number; acceptable: number } = { fast: 300, acceptable: 1_000 },
+): LatencyBucket => {
+  if (milliseconds === null) return 'failed';
+  if (milliseconds === undefined || !Number.isFinite(milliseconds) || milliseconds < 0) {
+    return 'unknown';
+  }
+  if (milliseconds < thresholds.fast) return 'fast';
+  if (milliseconds < thresholds.acceptable) return 'acceptable';
+  return 'slow';
+};
+
 export class BetaEvidenceService {
   readonly #telemetry: TelemetryPort;
   readonly #context: () => { clientSessionId: string; actorId?: string };
   readonly #now: () => Date;
   readonly #createId: () => string;
   readonly #openedInstances = new Set<string>();
+  #networkSampled = false;
 
   constructor(dependencies: BetaEvidenceDependencies) {
     this.#telemetry = dependencies.telemetry;
@@ -125,13 +140,37 @@ export class BetaEvidenceService {
   ): Promise<void> {
     if (this.#openedInstances.has(openInstanceId)) return Promise.resolve();
     this.#openedInstances.add(openInstanceId);
+    const context = this.#context();
     return this.#record({
-      id: `telemetry:content-opened:${this.#context().clientSessionId}:${openInstanceId}`,
+      id: `telemetry:content-opened:${context.clientSessionId}:${openInstanceId}`,
       contractVersion: TELEMETRY_EVENT_CONTRACT_VERSION,
       name: 'content_opened',
       occurredAt: this.#now(),
-      ...this.#context(),
+      ...context,
       properties: { contentId, source },
+    });
+  }
+
+  recordNetworkSample(input: {
+    ttfbMs?: number | null;
+    apiLatencyMs?: number | null;
+  }): Promise<void> {
+    if (this.#networkSampled) return Promise.resolve();
+    this.#networkSampled = true;
+    const context = this.#context();
+    return this.#record({
+      id: `telemetry:network-sample:${context.clientSessionId}`,
+      contractVersion: TELEMETRY_EVENT_CONTRACT_VERSION,
+      name: 'network_sample',
+      occurredAt: this.#now(),
+      ...context,
+      properties: {
+        ttfbBucket: classifyLatency(input.ttfbMs, { fast: 300, acceptable: 800 }),
+        apiLatencyBucket: classifyLatency(input.apiLatencyMs, {
+          fast: 500,
+          acceptable: 1_500,
+        }),
+      },
     });
   }
 
