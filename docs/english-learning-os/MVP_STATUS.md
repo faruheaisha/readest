@@ -1,6 +1,6 @@
 # English Learning OS — MVP Implementation Status
 
-**Updated:** 2026-09-08  
+**Updated:** 2026-09-09<br>
 **Branch:** `mvp/reading-learning-loop`  
 **Upstream baseline:** Readest `62b0162d91fff4e857238e1e92017eae4d2a9f31` (`0.12.6`)  
 **Status:** Local vertical slice implemented; not yet ready for unrestricted public use
@@ -16,7 +16,7 @@ This document reports implemented evidence, migration gaps, and release gates. I
 | M2 — Identity, local data, optional sync | Partial | Stable guest identity and idempotent guest-to-account ownership linking exist. Learning-category replica sync, export, deletion, and explicit sync controls remain. |
 | M3 — Content + Context Panel | Partial | Readest selection conversion, Locator context, responsive Context Panel, local learning saves, dictionary/translation/AI Action and Artifact flows, and source return exist. Lexical graph persistence, annotation ownership, and re-anchoring remain. Rich dictionary interactions continue through the original Readest surface. |
 | M4 — Practice + FSRS + Today | Substantially complete | Recognition, typing, spelling, cloze, immutable review events, FSRS scheduling, Today projection, delayed review, and return-to-source are implemented and tested. |
-| M5 — Progress, feedback, operations | Partial | Learning-event Progress projection and consent-gated feedback submission exist. Event contract reconciliation, product telemetry, operator triage, quotas dashboard, and OpenTelemetry operations remain. |
+| M5 — Progress, feedback, operations | Partial | Versioned Learning/Telemetry contracts, privacy-gated telemetry delivery, Learning-event Progress projection, and consent-gated feedback submission exist. Content import/open and network instrumentation, operator triage, quotas dashboard, and OpenTelemetry operations remain. |
 | M6 — Public MVP hardening | Not started | Accessibility audit, weak-network validation, end-to-end data controls, backups, resource isolation, legal surfaces, staged rollout, and production evidence are outstanding. |
 
 ## Completed implementation slices
@@ -32,6 +32,8 @@ This document reports implemented evidence, migration gaps, and release gates. I
 | `986c9aa1` | Consent-gated beta feedback collection |
 | `d65bdc85` | Context Panel translation through the governed Action/Artifact runtime |
 | `b24f7136` | Readest dictionary providers through the governed Action/Artifact runtime with rich-surface fallback |
+| `3a6f9bb1` | Unified dictionary, translation, and AI Context Panel action evidence recorded in the implementation baseline |
+| `b58d2ff0` | Versioned Beta evidence contracts, privacy-safe telemetry runtime, source-return facts, and legacy event migration |
 
 ## Correction queue
 
@@ -39,16 +41,18 @@ These corrections have higher priority than adding new feature areas:
 
 1. **Lexicon truth:** replace flattened learning-object persistence with the minimum viable Lexeme/Form/Sense/Expression/Occurrence graph while preserving current IDs and behavior.
 2. **Annotation truth:** adapt Readest BookNote into the owned Annotation contract, or migrate it; do not maintain two writable truths.
-3. **Event contract:** freeze versioned Domain/Learning/Telemetry event names and privacy-safe beta measurements before collecting public product signals.
+3. **Event coverage:** the versioned Learning/Telemetry contracts and privacy boundary are frozen at `1.0.0`; connect the remaining `content_import_*`, `content_opened`, and `network_sample` signals before interpreting activation or retention.
 4. **Sync and data control:** add learning replica categories, conflict policies, export, deletion, and locator re-anchoring.
 
 ## Verification evidence
 
 The latest implementation validation completed successfully before this documentation calibration:
 
-- 14 learning test files, 50 tests passed.
+- 15 learning/feedback test files, 45 tests passed.
 - TypeScript and Biome lint passed across the Readest app.
 - Web production build passed.
+
+The event evidence includes strict-schema rejection of selected text, separate pseudonymous telemetry identity, idempotent review facts, and a real SQLite migration from legacy save/review event shapes. Event-contract completion is deliberately not claimed until import, open, and network signals are connected at their Readest source boundaries.
 
 This is evidence for the new learning slice and whole-app static/build compatibility. It is not evidence that every upstream platform test, multi-device sync path, target network, or production recovery scenario has passed.
 

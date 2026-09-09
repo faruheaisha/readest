@@ -67,6 +67,9 @@ The first implementation slice includes:
 - an `IdentityPort` adapter over Readest's existing Supabase session plus a stable local guest identity;
 - idempotent guest-to-account ownership linking that preserves every learning object ID and refuses silent reassignment to another account;
 - a consent-gated feedback route for guests and accounts, with server-derived account ownership and no reading content in diagnostics;
+- versioned `1.0.0` Learning and Beta Telemetry contracts with strict payload schemas, stable per-tab sessions, and pseudonymous local actor identity;
+- governed evidence for Context actions, saves, Activities, memory reviews, Today starts, source returns, and feedback, delivered through Readest's existing consent-aware telemetry utility;
+- a compatibility migration that converts persisted legacy learning facts without changing learning-object IDs;
 - English and Simplified Chinese UI copy.
 
 Dictionary, translation, and AI run through owned Ports and the unified Action/Artifact runtime without duplicating Readest's provider clients. Dictionary lookup extracts a safe, portable textual Artifact from the enabled providers; users can still open the original rich surface for provider-specific images, links, styles, and OS handoff. A configured user AI provider is preferred; signed-in users otherwise receive the operator-funded platform allowance. BYOK and local models do not consume that allowance.
@@ -75,7 +78,7 @@ Platform AI operations use `AI_GATEWAY_API_KEY` on the server. `AI_DAILY_ACTION_
 
 ## Not complete yet
 
-This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires lexical and annotation single-truth migrations, a versioned beta event contract, browseable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, operator feedback triage tooling, broader resource limits, and public-beta hardening.
+This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires lexical and annotation single-truth migrations, remaining content-import/open/network evidence integration, browseable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, operator feedback triage tooling, broader resource limits, and public-beta hardening.
 
 See [`MVP_STATUS.md`](./MVP_STATUS.md) for evidence-backed milestone status, the correction queue, and release gates.
 

@@ -216,9 +216,9 @@ The following are explicit migration gaps. They do not redefine the target archi
 - Translation and dictionary lookup now use the complete Action Runtime path. Dictionary Artifacts keep a portable, inert text representation; Readest's existing rich provider surface remains an explicit presentation fallback for images, links, custom styles, and OS dictionary handoff.
 - Learning-object persistence is currently flattened and does not yet implement the Lexeme/Form/Sense/Expression/Occurrence graph.
 - The new annotation contract and table are not yet connected to Readest BookNote; they must not become a second annotation truth.
-- Plugin, job, event, config, and telemetry runtimes are only wired where the current vertical slice uses them.
+- Plugin, job, config, and telemetry runtimes are only wired where the current vertical slice uses them. The Event Runtime now persists and projects versioned save, Activity, memory-review, and source-return facts.
 - Replica-sync learning categories, export/deletion, conflict rules, and locator re-anchoring are incomplete.
-- Beta event names and instrumentation must be reconciled with the validation contract before staged public access.
+- Beta Learning/Telemetry names and payload privacy are reconciled at contract version `1.0.0`; import, content-open, and network signals still need integration at Readest source boundaries before staged public access.
 
 These gaps are tracked in `MVP_STATUS.md` and must be removed in risk order rather than hidden behind additional features.
 
