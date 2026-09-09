@@ -4,6 +4,10 @@ import type {
   ActivitySpec,
   Artifact,
   LearningEvent,
+  Lexeme,
+  LexicalGraph,
+  Expression,
+  Form,
   MemoryReviewEvent,
   Occurrence,
   ReviewItem,
@@ -11,6 +15,7 @@ import type {
   Schedule,
   TodayPlan,
 } from '../domain';
+import { assertLexicalGraph } from '../domain';
 import { learningEventSchema } from '../contracts';
 import type {
   ActivityRepositoryPort,
@@ -66,22 +71,76 @@ export class InMemoryLexiconAdapter implements LexiconRepositoryPort {
   readonly #objects = new Map<string, SavedLearningObject>();
   readonly #objectIdsByKey = new Map<string, string>();
   readonly #occurrences = new Map<string, Map<string, Occurrence>>();
+  readonly #lexemes = new Map<string, Lexeme>();
+  readonly #lexemeIdsByKey = new Map<string, string>();
+  readonly #forms = new Map<string, Form>();
+  readonly #formIdsByKey = new Map<string, string>();
+  readonly #expressions = new Map<string, Expression>();
+  readonly #expressionIdsByKey = new Map<string, string>();
+  readonly #graphs = new Map<string, LexicalGraph>();
 
   async upsertLearningObject(
     candidate: SavedLearningObject,
+    candidateGraph: LexicalGraph,
     occurrence: Occurrence,
   ): Promise<{
     learningObject: SavedLearningObject;
     created: boolean;
     occurrenceCreated: boolean;
   }> {
+    assertLexicalGraph(candidate, candidateGraph);
     const key = learningObjectKey(candidate);
     const existingId = this.#objectIdsByKey.get(key);
-    const learningObject = existingId ? this.#objects.get(existingId)! : candidate;
+    let learningObject = existingId ? this.#objects.get(existingId)! : candidate;
     const created = existingId === undefined;
     if (created) {
-      this.#objects.set(candidate.id, candidate);
-      this.#objectIdsByKey.set(key, candidate.id);
+      let graph: LexicalGraph = { forms: [] };
+      if (candidateGraph.lexeme) {
+        const lexemeKey = `${candidateGraph.lexeme.language.toLowerCase()}\u0000${candidateGraph.lexeme.normalizedLemma}`;
+        const existingLexemeId = this.#lexemeIdsByKey.get(lexemeKey);
+        const lexeme = existingLexemeId
+          ? this.#lexemes.get(existingLexemeId)!
+          : candidateGraph.lexeme;
+        if (!existingLexemeId) {
+          this.#lexemes.set(lexeme.id, lexeme);
+          this.#lexemeIdsByKey.set(lexemeKey, lexeme.id);
+        }
+        const forms = candidateGraph.forms.map((candidateForm) => {
+          const formKey = `${lexeme.id}\u0000${candidateForm.language.toLowerCase()}\u0000${candidateForm.normalizedText}\u0000${candidateForm.formType}`;
+          const existingFormId = this.#formIdsByKey.get(formKey);
+          if (existingFormId) return this.#forms.get(existingFormId)!;
+          const form = { ...candidateForm, lexemeId: lexeme.id };
+          this.#forms.set(form.id, form);
+          this.#formIdsByKey.set(formKey, form.id);
+          return form;
+        });
+        const sense = candidateGraph.sense
+          ? { ...candidateGraph.sense, lexemeId: lexeme.id }
+          : undefined;
+        learningObject = {
+          ...candidate,
+          lexemeId: lexeme.id,
+          ...(sense ? { senseId: sense.id } : {}),
+        };
+        graph = { lexeme, forms, ...(sense ? { sense } : {}) };
+      } else if (candidateGraph.expression) {
+        const expressionKey = `${candidateGraph.expression.expressionType}\u0000${candidateGraph.expression.language.toLowerCase()}\u0000${candidateGraph.expression.normalizedText}`;
+        const existingExpressionId = this.#expressionIdsByKey.get(expressionKey);
+        const expression = existingExpressionId
+          ? this.#expressions.get(existingExpressionId)!
+          : candidateGraph.expression;
+        if (!existingExpressionId) {
+          this.#expressions.set(expression.id, expression);
+          this.#expressionIdsByKey.set(expressionKey, expression.id);
+        }
+        learningObject = { ...candidate, expressionId: expression.id };
+        graph = { forms: [], expression };
+      } else {
+        throw new Error(`Lexical graph is missing an owner for ${candidate.kind}`);
+      }
+      this.#objects.set(learningObject.id, learningObject);
+      this.#objectIdsByKey.set(key, learningObject.id);
+      this.#graphs.set(learningObject.id, graph);
     }
 
     const occurrences = this.#occurrences.get(learningObject.id) ?? new Map<string, Occurrence>();
@@ -96,6 +155,10 @@ export class InMemoryLexiconAdapter implements LexiconRepositoryPort {
 
   async getLearningObject(id: string): Promise<SavedLearningObject | null> {
     return this.#objects.get(id) ?? null;
+  }
+
+  async getLexicalGraph(learningObjectId: string): Promise<LexicalGraph | null> {
+    return this.#graphs.get(learningObjectId) ?? null;
   }
 
   async listRecent(limit: number): Promise<readonly SavedLearningObject[]> {

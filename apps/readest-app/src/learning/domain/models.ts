@@ -92,8 +92,10 @@ export interface Form {
   id: string;
   lexemeId: string;
   text: string;
+  normalizedText: string;
   language: LanguageTag;
   formType: 'lemma' | 'inflection' | 'variant';
+  createdAt: Date;
 }
 
 export interface Pronunciation {
@@ -107,6 +109,7 @@ export interface Pronunciation {
 export interface Lexeme {
   id: string;
   lemma: string;
+  normalizedLemma: string;
   language: LanguageTag;
   partOfSpeech?: string;
   createdAt: Date;
@@ -115,9 +118,11 @@ export interface Lexeme {
 export interface Sense {
   id: string;
   lexemeId: string;
-  definition: string;
-  definitionLanguage: LanguageTag;
+  definition?: string;
+  definitionLanguage?: LanguageTag;
   partOfSpeech?: string;
+  status: 'unresolved' | 'resolved';
+  createdAt: Date;
 }
 
 export interface Expression {
@@ -125,6 +130,15 @@ export interface Expression {
   text: string;
   language: LanguageTag;
   normalizedText: string;
+  expressionType: 'expression' | 'sentence';
+  createdAt: Date;
+}
+
+export interface LexicalGraph {
+  lexeme?: Lexeme;
+  forms: readonly Form[];
+  sense?: Sense;
+  expression?: Expression;
 }
 
 export type LearningObjectKind = 'word' | 'sense' | 'expression' | 'sentence';

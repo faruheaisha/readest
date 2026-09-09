@@ -433,6 +433,148 @@ const migrations: Record<SchemaType, MigrationEntry[]> = {
         ON learning_events (client_session_id, occurred_at);
       `,
     },
+    {
+      name: '2026090902_learning_lexical_graph',
+      sql: `
+        CREATE TABLE IF NOT EXISTS learning_lexemes (
+          id TEXT PRIMARY KEY,
+          lemma TEXT NOT NULL,
+          normalized_lemma TEXT NOT NULL,
+          language TEXT NOT NULL,
+          part_of_speech TEXT,
+          created_at INTEGER NOT NULL,
+          UNIQUE (language, normalized_lemma)
+        );
+
+        CREATE TABLE IF NOT EXISTS learning_forms (
+          id TEXT PRIMARY KEY,
+          lexeme_id TEXT NOT NULL REFERENCES learning_lexemes(id) ON DELETE CASCADE,
+          text TEXT NOT NULL,
+          normalized_text TEXT NOT NULL,
+          language TEXT NOT NULL,
+          form_type TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          UNIQUE (lexeme_id, language, normalized_text, form_type)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_forms_lexeme
+        ON learning_forms (lexeme_id);
+
+        CREATE TABLE IF NOT EXISTS learning_senses (
+          id TEXT PRIMARY KEY,
+          lexeme_id TEXT NOT NULL REFERENCES learning_lexemes(id) ON DELETE CASCADE,
+          definition TEXT,
+          definition_language TEXT,
+          part_of_speech TEXT,
+          status TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_senses_lexeme
+        ON learning_senses (lexeme_id);
+
+        CREATE TABLE IF NOT EXISTS learning_expressions (
+          id TEXT PRIMARY KEY,
+          text TEXT NOT NULL,
+          normalized_text TEXT NOT NULL,
+          language TEXT NOT NULL,
+          expression_type TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          UNIQUE (expression_type, language, normalized_text)
+        );
+
+        ALTER TABLE learning_objects
+        ADD COLUMN lexeme_id TEXT REFERENCES learning_lexemes(id);
+
+        ALTER TABLE learning_objects
+        ADD COLUMN sense_id TEXT REFERENCES learning_senses(id);
+
+        ALTER TABLE learning_objects
+        ADD COLUMN expression_id TEXT REFERENCES learning_expressions(id);
+
+        INSERT OR IGNORE INTO learning_lexemes
+          (id, lemma, normalized_lemma, language, part_of_speech, created_at)
+        SELECT
+          'lexeme:' || id,
+          text,
+          normalized_text,
+          language,
+          NULL,
+          created_at
+        FROM learning_objects
+        WHERE kind IN ('word', 'sense')
+        ORDER BY created_at, id;
+
+        UPDATE learning_objects
+        SET lexeme_id = (
+          SELECT lexeme.id
+          FROM learning_lexemes lexeme
+          WHERE lexeme.language = learning_objects.language
+            AND lexeme.normalized_lemma = learning_objects.normalized_text
+        )
+        WHERE kind IN ('word', 'sense');
+
+        INSERT OR IGNORE INTO learning_forms
+          (id, lexeme_id, text, normalized_text, language, form_type, created_at)
+        SELECT
+          'form:' || id,
+          id,
+          lemma,
+          normalized_lemma,
+          language,
+          'lemma',
+          created_at
+        FROM learning_lexemes;
+
+        INSERT OR IGNORE INTO learning_senses
+          (id, lexeme_id, definition, definition_language, part_of_speech, status, created_at)
+        SELECT
+          'sense:' || id,
+          lexeme_id,
+          NULL,
+          NULL,
+          NULL,
+          'unresolved',
+          created_at
+        FROM learning_objects
+        WHERE kind = 'sense';
+
+        UPDATE learning_objects
+        SET sense_id = 'sense:' || id
+        WHERE kind = 'sense';
+
+        INSERT OR IGNORE INTO learning_expressions
+          (id, text, normalized_text, language, expression_type, created_at)
+        SELECT
+          'expression:' || id,
+          text,
+          normalized_text,
+          language,
+          kind,
+          created_at
+        FROM learning_objects
+        WHERE kind IN ('expression', 'sentence');
+
+        UPDATE learning_objects
+        SET expression_id = (
+          SELECT expression.id
+          FROM learning_expressions expression
+          WHERE expression.expression_type = learning_objects.kind
+            AND expression.language = learning_objects.language
+            AND expression.normalized_text = learning_objects.normalized_text
+        )
+        WHERE kind IN ('expression', 'sentence');
+
+        CREATE INDEX IF NOT EXISTS idx_learning_objects_lexeme
+        ON learning_objects (lexeme_id);
+
+        CREATE INDEX IF NOT EXISTS idx_learning_objects_sense
+        ON learning_objects (sense_id);
+
+        CREATE INDEX IF NOT EXISTS idx_learning_objects_expression
+        ON learning_objects (expression_id);
+      `,
+    },
   ],
   reedy: [
     {

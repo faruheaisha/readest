@@ -1,12 +1,17 @@
 import type { DatabaseService } from '@/types/database';
 import { learningEventSchema, locatorSchema, selectionContextSchema } from '../contracts';
+import { assertLexicalGraph } from '../domain';
 import type {
   ActivityAttempt,
   ActivityResult,
   ActivitySpec,
   Artifact,
+  Expression,
+  Form,
   LearningEvent,
   LearningEventType,
+  Lexeme,
+  LexicalGraph,
   MemoryReviewEvent,
   MemoryState,
   Occurrence,
@@ -14,6 +19,7 @@ import type {
   ReviewRating,
   SavedLearningObject,
   Schedule,
+  Sense,
   TodayPlan,
   TodayPlanItem,
 } from '../domain';
@@ -56,8 +62,53 @@ interface LearningObjectRow {
   text: string;
   normalized_text: string;
   language: string;
+  lexeme_id: string | null;
+  sense_id: string | null;
+  expression_id: string | null;
   created_at: number;
   updated_at: number;
+  [key: string]: unknown;
+}
+
+interface LexemeRow {
+  id: string;
+  lemma: string;
+  normalized_lemma: string;
+  language: string;
+  part_of_speech: string | null;
+  created_at: number;
+  [key: string]: unknown;
+}
+
+interface FormRow {
+  id: string;
+  lexeme_id: string;
+  text: string;
+  normalized_text: string;
+  language: string;
+  form_type: Form['formType'];
+  created_at: number;
+  [key: string]: unknown;
+}
+
+interface SenseRow {
+  id: string;
+  lexeme_id: string;
+  definition: string | null;
+  definition_language: string | null;
+  part_of_speech: string | null;
+  status: Sense['status'];
+  created_at: number;
+  [key: string]: unknown;
+}
+
+interface ExpressionRow {
+  id: string;
+  text: string;
+  normalized_text: string;
+  language: string;
+  expression_type: Expression['expressionType'];
+  created_at: number;
   [key: string]: unknown;
 }
 
@@ -130,8 +181,49 @@ const toLearningObject = (row: LearningObjectRow): SavedLearningObject => ({
   text: row.text,
   normalizedText: row.normalized_text,
   language: row.language,
+  ...(row.lexeme_id ? { lexemeId: row.lexeme_id } : {}),
+  ...(row.sense_id ? { senseId: row.sense_id } : {}),
+  ...(row.expression_id ? { expressionId: row.expression_id } : {}),
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at),
+});
+
+const toLexeme = (row: LexemeRow): Lexeme => ({
+  id: row.id,
+  lemma: row.lemma,
+  normalizedLemma: row.normalized_lemma,
+  language: row.language,
+  ...(row.part_of_speech ? { partOfSpeech: row.part_of_speech } : {}),
+  createdAt: new Date(row.created_at),
+});
+
+const toForm = (row: FormRow): Form => ({
+  id: row.id,
+  lexemeId: row.lexeme_id,
+  text: row.text,
+  normalizedText: row.normalized_text,
+  language: row.language,
+  formType: row.form_type,
+  createdAt: new Date(row.created_at),
+});
+
+const toSense = (row: SenseRow): Sense => ({
+  id: row.id,
+  lexemeId: row.lexeme_id,
+  ...(row.definition ? { definition: row.definition } : {}),
+  ...(row.definition_language ? { definitionLanguage: row.definition_language } : {}),
+  ...(row.part_of_speech ? { partOfSpeech: row.part_of_speech } : {}),
+  status: row.status,
+  createdAt: new Date(row.created_at),
+});
+
+const toExpression = (row: ExpressionRow): Expression => ({
+  id: row.id,
+  text: row.text,
+  normalizedText: row.normalized_text,
+  language: row.language,
+  expressionType: row.expression_type,
+  createdAt: new Date(row.created_at),
 });
 
 const toOccurrence = (row: OccurrenceRow): Occurrence => ({
@@ -277,57 +369,181 @@ export class ReadestLearningDatabaseAdapter
 
   upsertLearningObject(
     candidate: SavedLearningObject,
+    candidateGraph: LexicalGraph,
     occurrence: Occurrence,
   ): Promise<{
     learningObject: SavedLearningObject;
     created: boolean;
     occurrenceCreated: boolean;
   }> {
+    assertLexicalGraph(candidate, candidateGraph);
     return this.enqueue(async () => {
-      const insert = await this.db.execute(
-        `INSERT INTO learning_objects
-          (id, kind, text, normalized_text, language, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(kind, language, normalized_text) DO NOTHING`,
-        [
-          candidate.id,
-          candidate.kind,
-          candidate.text,
-          candidate.normalizedText,
-          candidate.language,
-          candidate.createdAt.getTime(),
-          candidate.updatedAt.getTime(),
-        ],
-      );
-      const rows = await this.db.select<LearningObjectRow>(
-        `SELECT * FROM learning_objects
-         WHERE kind = ? AND language = ? AND normalized_text = ?`,
-        [candidate.kind, candidate.language, candidate.normalizedText],
-      );
-      const learningObject = toLearningObject(rows[0]!);
-      const locatorJson = JSON.stringify(occurrence.locator);
-      const occurrenceInsert = await this.db.execute(
-        `INSERT INTO learning_occurrences
-          (id, learning_object_id, content_id, content_version_id, locator_json, locator_key, context_text, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(learning_object_id, locator_key) DO NOTHING`,
-        [
-          occurrence.id,
-          learningObject.id,
-          occurrence.contentId,
-          occurrence.contentVersionId,
-          locatorJson,
-          locatorJson,
-          occurrence.contextText,
-          occurrence.createdAt.getTime(),
-        ],
-      );
-      return {
-        learningObject,
-        created: insert.rowsAffected > 0,
-        occurrenceCreated: occurrenceInsert.rowsAffected > 0,
-      };
+      await this.db.execute('BEGIN IMMEDIATE');
+      try {
+        const existingRows = await this.db.select<LearningObjectRow>(
+          `SELECT * FROM learning_objects
+           WHERE kind = ? AND language = ? AND normalized_text = ?`,
+          [candidate.kind, candidate.language, candidate.normalizedText],
+        );
+        const existing = existingRows[0];
+        if (existing) {
+          const occurrenceCreated = await this.insertOccurrence(existing.id, occurrence);
+          await this.db.execute('COMMIT');
+          return {
+            learningObject: toLearningObject(existing),
+            created: false,
+            occurrenceCreated,
+          };
+        }
+
+        let learningObject: SavedLearningObject;
+        if (candidate.kind === 'word' || candidate.kind === 'sense') {
+          const proposedLexeme = candidateGraph.lexeme!;
+          await this.db.execute(
+            `INSERT INTO learning_lexemes
+              (id, lemma, normalized_lemma, language, part_of_speech, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT(language, normalized_lemma) DO NOTHING`,
+            [
+              proposedLexeme.id,
+              proposedLexeme.lemma,
+              proposedLexeme.normalizedLemma,
+              proposedLexeme.language,
+              proposedLexeme.partOfSpeech ?? null,
+              proposedLexeme.createdAt.getTime(),
+            ],
+          );
+          const lexemeRows = await this.db.select<LexemeRow>(
+            `SELECT * FROM learning_lexemes
+             WHERE language = ? AND normalized_lemma = ?`,
+            [proposedLexeme.language, proposedLexeme.normalizedLemma],
+          );
+          const lexeme = toLexeme(lexemeRows[0]!);
+
+          for (const form of candidateGraph.forms) {
+            await this.db.execute(
+              `INSERT INTO learning_forms
+                (id, lexeme_id, text, normalized_text, language, form_type, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(lexeme_id, language, normalized_text, form_type) DO NOTHING`,
+              [
+                form.id,
+                lexeme.id,
+                form.text,
+                form.normalizedText,
+                form.language,
+                form.formType,
+                form.createdAt.getTime(),
+              ],
+            );
+          }
+
+          let senseId: string | undefined;
+          if (candidateGraph.sense) {
+            const sense = candidateGraph.sense;
+            await this.db.execute(
+              `INSERT INTO learning_senses
+                (id, lexeme_id, definition, definition_language, part_of_speech, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`,
+              [
+                sense.id,
+                lexeme.id,
+                sense.definition ?? null,
+                sense.definitionLanguage ?? null,
+                sense.partOfSpeech ?? null,
+                sense.status,
+                sense.createdAt.getTime(),
+              ],
+            );
+            senseId = sense.id;
+          }
+
+          learningObject = {
+            ...candidate,
+            lexemeId: lexeme.id,
+            ...(senseId ? { senseId } : {}),
+          };
+        } else {
+          const proposedExpression = candidateGraph.expression;
+          if (!proposedExpression || proposedExpression.expressionType !== candidate.kind) {
+            throw new Error(`${candidate.kind} requires a matching Expression node`);
+          }
+          await this.db.execute(
+            `INSERT INTO learning_expressions
+              (id, text, normalized_text, language, expression_type, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT(expression_type, language, normalized_text) DO NOTHING`,
+            [
+              proposedExpression.id,
+              proposedExpression.text,
+              proposedExpression.normalizedText,
+              proposedExpression.language,
+              proposedExpression.expressionType,
+              proposedExpression.createdAt.getTime(),
+            ],
+          );
+          const expressionRows = await this.db.select<ExpressionRow>(
+            `SELECT * FROM learning_expressions
+             WHERE expression_type = ? AND language = ? AND normalized_text = ?`,
+            [candidate.kind, proposedExpression.language, proposedExpression.normalizedText],
+          );
+          learningObject = { ...candidate, expressionId: expressionRows[0]!.id };
+        }
+
+        const insert = await this.db.execute(
+          `INSERT INTO learning_objects
+            (id, kind, text, normalized_text, language, lexeme_id, sense_id, expression_id,
+             created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            learningObject.id,
+            learningObject.kind,
+            learningObject.text,
+            learningObject.normalizedText,
+            learningObject.language,
+            learningObject.lexemeId ?? null,
+            learningObject.senseId ?? null,
+            learningObject.expressionId ?? null,
+            learningObject.createdAt.getTime(),
+            learningObject.updatedAt.getTime(),
+          ],
+        );
+        const occurrenceCreated = await this.insertOccurrence(learningObject.id, occurrence);
+        await this.db.execute('COMMIT');
+        return {
+          learningObject,
+          created: insert.rowsAffected > 0,
+          occurrenceCreated,
+        };
+      } catch (error) {
+        await this.db.execute('ROLLBACK');
+        throw error;
+      }
     });
+  }
+
+  private async insertOccurrence(
+    learningObjectId: string,
+    occurrence: Occurrence,
+  ): Promise<boolean> {
+    const locatorJson = JSON.stringify(occurrence.locator);
+    const insert = await this.db.execute(
+      `INSERT INTO learning_occurrences
+        (id, learning_object_id, content_id, content_version_id, locator_json, locator_key, context_text, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(learning_object_id, locator_key) DO NOTHING`,
+      [
+        occurrence.id,
+        learningObjectId,
+        occurrence.contentId,
+        occurrence.contentVersionId,
+        locatorJson,
+        locatorJson,
+        occurrence.contextText,
+        occurrence.createdAt.getTime(),
+      ],
+    );
+    return insert.rowsAffected > 0;
   }
 
   async getLearningObject(id: string): Promise<SavedLearningObject | null> {
@@ -336,6 +552,45 @@ export class ReadestLearningDatabaseAdapter
       [id],
     );
     return rows[0] ? toLearningObject(rows[0]) : null;
+  }
+
+  async getLexicalGraph(learningObjectId: string): Promise<LexicalGraph | null> {
+    const learningObject = await this.getLearningObject(learningObjectId);
+    if (!learningObject) return null;
+
+    const graph: LexicalGraph = { forms: [] };
+    if (learningObject.lexemeId) {
+      const lexemeRows = await this.db.select<LexemeRow>(
+        'SELECT * FROM learning_lexemes WHERE id = ?',
+        [learningObject.lexemeId],
+      );
+      if (!lexemeRows[0]) throw new Error(`Lexeme "${learningObject.lexemeId}" is missing`);
+      graph.lexeme = toLexeme(lexemeRows[0]);
+      const formRows = await this.db.select<FormRow>(
+        'SELECT * FROM learning_forms WHERE lexeme_id = ? ORDER BY created_at, id',
+        [learningObject.lexemeId],
+      );
+      graph.forms = formRows.map(toForm);
+    }
+    if (learningObject.senseId) {
+      const senseRows = await this.db.select<SenseRow>(
+        'SELECT * FROM learning_senses WHERE id = ?',
+        [learningObject.senseId],
+      );
+      if (!senseRows[0]) throw new Error(`Sense "${learningObject.senseId}" is missing`);
+      graph.sense = toSense(senseRows[0]);
+    }
+    if (learningObject.expressionId) {
+      const expressionRows = await this.db.select<ExpressionRow>(
+        'SELECT * FROM learning_expressions WHERE id = ?',
+        [learningObject.expressionId],
+      );
+      if (!expressionRows[0]) {
+        throw new Error(`Expression "${learningObject.expressionId}" is missing`);
+      }
+      graph.expression = toExpression(expressionRows[0]);
+    }
+    return graph;
   }
 
   async listRecent(limit: number): Promise<readonly SavedLearningObject[]> {

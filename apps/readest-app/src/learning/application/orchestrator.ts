@@ -1,5 +1,6 @@
 import type {
   LearningObjectKind,
+  LexicalGraph,
   MemoryReviewEvent,
   Occurrence,
   ReviewItem,
@@ -74,15 +75,61 @@ export class LearningOrchestrator implements LearningOrchestratorPort {
     saveMode: 'save' | 'save_and_practice' = 'save',
   ): Promise<{ learningObject: SavedLearningObject; created: boolean }> {
     const now = this.now();
+    const text = selection.text.trim();
+    const normalizedText = normalizeText(selection.text);
     const learningObject: SavedLearningObject = {
       id: this.createId(),
       kind,
-      text: selection.text.trim(),
-      normalizedText: normalizeText(selection.text),
+      text,
+      normalizedText,
       language: selection.language,
       createdAt: now,
       updatedAt: now,
     };
+    const graph: LexicalGraph = { forms: [] };
+    if (kind === 'word' || kind === 'sense') {
+      const lexemeId = this.createId();
+      const lexeme = {
+        id: lexemeId,
+        lemma: text,
+        normalizedLemma: normalizedText,
+        language: selection.language,
+        createdAt: now,
+      };
+      const form = {
+        id: this.createId(),
+        lexemeId,
+        text,
+        normalizedText,
+        language: selection.language,
+        formType: 'lemma' as const,
+        createdAt: now,
+      };
+      graph.lexeme = lexeme;
+      graph.forms = [form];
+      learningObject.lexemeId = lexemeId;
+      if (kind === 'sense') {
+        const sense = {
+          id: this.createId(),
+          lexemeId,
+          status: 'unresolved' as const,
+          createdAt: now,
+        };
+        graph.sense = sense;
+        learningObject.senseId = sense.id;
+      }
+    } else {
+      const expression = {
+        id: this.createId(),
+        text,
+        normalizedText,
+        language: selection.language,
+        expressionType: kind,
+        createdAt: now,
+      };
+      graph.expression = expression;
+      learningObject.expressionId = expression.id;
+    }
     const occurrence: Occurrence = {
       id: this.createId(),
       learningObjectId: learningObject.id,
@@ -92,7 +139,11 @@ export class LearningOrchestrator implements LearningOrchestratorPort {
       contextText: selection.text,
       createdAt: now,
     };
-    const result = await this.dependencies.lexicon.upsertLearningObject(learningObject, occurrence);
+    const result = await this.dependencies.lexicon.upsertLearningObject(
+      learningObject,
+      graph,
+      occurrence,
+    );
     if (result.created) {
       const context = this.eventContext();
       await this.dependencies.events.publish({

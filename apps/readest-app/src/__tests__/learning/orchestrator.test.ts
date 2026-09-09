@@ -56,6 +56,42 @@ describe('LearningOrchestrator', () => {
     expect(events.all().filter((event) => event.type === 'learning_object_saved')).toHaveLength(1);
   });
 
+  it('keeps review targets distinct while sharing canonical lexical nodes', async () => {
+    const lexicon = new InMemoryLexiconAdapter();
+    const orchestrator = new LearningOrchestrator({
+      lexicon,
+      memory: new InMemoryMemoryAdapter(),
+      scheduler,
+      plans: new InMemoryLearningPlanAdapter(),
+      events: new InMemoryLearningEventAdapter(),
+      now: () => new Date('2026-09-07T12:00:00.000Z'),
+      createId: (() => {
+        let id = 0;
+        return () => `graph-${++id}`;
+      })(),
+    });
+
+    const word = await orchestrator.saveSelection(selection, 'word');
+    const sense = await orchestrator.saveSelection(selection, 'sense');
+    const expression = await orchestrator.saveSelection(selection, 'expression');
+    const sentence = await orchestrator.saveSelection(selection, 'sentence');
+    const wordGraph = await lexicon.getLexicalGraph(word.learningObject.id);
+    const senseGraph = await lexicon.getLexicalGraph(sense.learningObject.id);
+    const expressionGraph = await lexicon.getLexicalGraph(expression.learningObject.id);
+    const sentenceGraph = await lexicon.getLexicalGraph(sentence.learningObject.id);
+
+    expect(sense.learningObject.id).not.toBe(word.learningObject.id);
+    expect(senseGraph?.lexeme?.id).toBe(wordGraph?.lexeme?.id);
+    expect(senseGraph?.forms).toEqual(wordGraph?.forms);
+    expect(senseGraph?.sense).toEqual(
+      expect.objectContaining({ status: 'unresolved', lexemeId: wordGraph?.lexeme?.id }),
+    );
+    expect(senseGraph?.sense?.definition).toBeUndefined();
+    expect(expressionGraph?.expression?.expressionType).toBe('expression');
+    expect(sentenceGraph?.expression?.expressionType).toBe('sentence');
+    expect(sentenceGraph?.expression?.id).not.toBe(expressionGraph?.expression?.id);
+  });
+
   it('records an immutable review event before deriving the next schedule', async () => {
     const memory = new InMemoryMemoryAdapter();
     const events = new InMemoryLearningEventAdapter();

@@ -11,6 +11,7 @@ import type {
   ContentItem,
   Entitlement,
   LearningEvent,
+  LexicalGraph,
   LearningObjectKind,
   Locator,
   MemoryReviewEvent,
@@ -46,9 +47,11 @@ export interface CatalogConnectorPort {
 export interface LexiconRepositoryPort {
   upsertLearningObject(
     learningObject: SavedLearningObject,
+    graph: LexicalGraph,
     occurrence: Occurrence,
   ): Promise<{ learningObject: SavedLearningObject; created: boolean; occurrenceCreated: boolean }>;
   getLearningObject(id: string): Promise<SavedLearningObject | null>;
+  getLexicalGraph(learningObjectId: string): Promise<LexicalGraph | null>;
   listRecent(limit: number): Promise<readonly SavedLearningObject[]>;
   listOccurrences(learningObjectId: string): Promise<readonly Occurrence[]>;
 }

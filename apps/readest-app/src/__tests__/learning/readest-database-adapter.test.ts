@@ -33,13 +33,17 @@ describe('ReadestLearningDatabaseAdapter', () => {
       'learning_annotations',
       'learning_artifacts',
       'learning_events',
+      'learning_expressions',
+      'learning_forms',
       'learning_identity_links',
       'learning_identity_state',
+      'learning_lexemes',
       'learning_objects',
       'learning_occurrences',
       'learning_review_events',
       'learning_review_items',
       'learning_schedules',
+      'learning_senses',
       'learning_today_plans',
     ]);
   });
@@ -159,10 +163,119 @@ describe('ReadestLearningDatabaseAdapter', () => {
     ]);
   });
 
+  it('persists canonical lexical nodes without merging distinct review targets', async () => {
+    let id = 0;
+    const orchestrator = new LearningOrchestrator({
+      lexicon: adapter,
+      memory: adapter,
+      scheduler: new FsrsMemorySchedulerAdapter({ enableFuzzing: false }),
+      plans: adapter,
+      events: adapter,
+      now: () => new Date('2026-09-07T12:00:00.000Z'),
+      createId: () => `lexical-${++id}`,
+    });
+    const selection = {
+      contentId: 'book-lexical',
+      contentVersionId: 'book-lexical-v1',
+      text: 'Evidence',
+      language: 'en',
+      locator: {
+        href: 'chapter.xhtml',
+        locations: { progression: 0.4 },
+        text: { highlight: 'Evidence' },
+      },
+    } as const;
+
+    const word = await orchestrator.saveSelection(selection, 'word');
+    const sense = await orchestrator.saveSelection(selection, 'sense');
+    const wordGraph = await adapter.getLexicalGraph(word.learningObject.id);
+    const senseGraph = await adapter.getLexicalGraph(sense.learningObject.id);
+
+    expect(word.learningObject.id).not.toBe(sense.learningObject.id);
+    expect(wordGraph?.lexeme?.id).toBe(senseGraph?.lexeme?.id);
+    expect(wordGraph?.forms).toHaveLength(1);
+    expect(senseGraph?.forms).toEqual(wordGraph?.forms);
+    expect(senseGraph?.sense).toEqual(
+      expect.objectContaining({ status: 'unresolved', lexemeId: wordGraph?.lexeme?.id }),
+    );
+    expect(senseGraph?.sense?.definition).toBeUndefined();
+  });
+
+  it('rolls back lexical nodes when a learning-object write fails', async () => {
+    const createdAt = new Date('2026-09-07T12:00:00.000Z');
+    const orchestrator = new LearningOrchestrator({
+      lexicon: adapter,
+      memory: adapter,
+      scheduler: new FsrsMemorySchedulerAdapter({ enableFuzzing: false }),
+      plans: adapter,
+      events: adapter,
+      now: () => createdAt,
+      createId: (() => {
+        let id = 0;
+        return () => `collision-${++id}`;
+      })(),
+    });
+    const selection = {
+      contentId: 'book-collision',
+      contentVersionId: 'book-collision-v1',
+      text: 'existing expression',
+      language: 'en',
+      locator: { href: 'chapter.xhtml', locations: { progression: 0.1 } },
+    } as const;
+    const existing = await orchestrator.saveSelection(selection, 'expression');
+    const candidate = {
+      id: existing.learningObject.id,
+      kind: 'word',
+      text: 'atomic',
+      normalizedText: 'atomic',
+      language: 'en',
+      createdAt,
+      updatedAt: createdAt,
+    } as const;
+    const graph = {
+      lexeme: {
+        id: 'rollback-lexeme',
+        lemma: 'atomic',
+        normalizedLemma: 'atomic',
+        language: 'en',
+        createdAt,
+      },
+      forms: [
+        {
+          id: 'rollback-form',
+          lexemeId: 'rollback-lexeme',
+          text: 'atomic',
+          normalizedText: 'atomic',
+          language: 'en',
+          formType: 'lemma',
+          createdAt,
+        },
+      ],
+    } as const;
+    const occurrence = {
+      id: 'rollback-occurrence',
+      learningObjectId: candidate.id,
+      contentId: selection.contentId,
+      contentVersionId: selection.contentVersionId,
+      locator: selection.locator,
+      contextText: candidate.text,
+      createdAt,
+    } as const;
+
+    await expect(adapter.upsertLearningObject(candidate, graph, occurrence)).rejects.toThrow();
+
+    expect(await db.select('SELECT id FROM learning_lexemes')).toEqual([]);
+    expect(await db.select('SELECT id FROM learning_forms')).toEqual([]);
+    expect(await db.select('SELECT id FROM learning_objects')).toHaveLength(1);
+  });
+
   it('upgrades legacy learning facts into the versioned evidence contract', async () => {
     const legacyDb = await NodeDatabaseService.open(':memory:');
     const migrations = getMigrations('learning');
-    const legacyMigrations = migrations.slice(0, -1);
+    const eventMigrationIndex = migrations.findIndex(
+      (migration) => migration.name === '2026090901_learning_event_contract_v1',
+    );
+    const legacyMigrations = migrations.slice(0, eventMigrationIndex);
 
     try {
       await migrate(legacyDb, legacyMigrations);
@@ -222,6 +335,59 @@ describe('ReadestLearningDatabaseAdapter', () => {
           },
         }),
       ]);
+    } finally {
+      await legacyDb.close();
+    }
+  });
+
+  it('backfills the lexical graph without changing legacy learning or review IDs', async () => {
+    const legacyDb = await NodeDatabaseService.open(':memory:');
+    const migrations = getMigrations('learning');
+    const lexicalMigrationIndex = migrations.findIndex(
+      (migration) => migration.name === '2026090902_learning_lexical_graph',
+    );
+
+    try {
+      await migrate(legacyDb, migrations.slice(0, lexicalMigrationIndex));
+      const createdAt = new Date('2026-09-01T12:00:00.000Z').getTime();
+      for (const [id, kind, text, normalized] of [
+        ['legacy-word', 'word', 'Evidence', 'evidence'],
+        ['legacy-sense', 'sense', 'evidence', 'evidence'],
+        ['legacy-expression', 'expression', 'break the ice', 'break the ice'],
+        ['legacy-sentence', 'sentence', 'break the ice', 'break the ice'],
+      ] as const) {
+        await legacyDb.execute(
+          `INSERT INTO learning_objects
+            (id, kind, text, normalized_text, language, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'en', ?, ?)`,
+          [id, kind, text, normalized, createdAt, createdAt],
+        );
+      }
+      await legacyDb.execute(
+        `INSERT INTO learning_review_items (id, learning_object_id, policy_id, created_at)
+         VALUES ('legacy-review', 'legacy-word', 'memory.fsrs.default', ?)`,
+        [createdAt],
+      );
+
+      await migrate(legacyDb, migrations);
+      const migrated = new ReadestLearningDatabaseAdapter(legacyDb);
+      const word = await migrated.getLearningObject('legacy-word');
+      const sense = await migrated.getLearningObject('legacy-sense');
+      const wordGraph = await migrated.getLexicalGraph('legacy-word');
+      const senseGraph = await migrated.getLexicalGraph('legacy-sense');
+      const expressionGraph = await migrated.getLexicalGraph('legacy-expression');
+      const sentenceGraph = await migrated.getLexicalGraph('legacy-sentence');
+
+      expect(word?.id).toBe('legacy-word');
+      expect(sense?.id).toBe('legacy-sense');
+      expect(wordGraph?.lexeme?.id).toBe(senseGraph?.lexeme?.id);
+      expect(wordGraph?.forms).toHaveLength(1);
+      expect(senseGraph?.sense).toEqual(
+        expect.objectContaining({ status: 'unresolved', lexemeId: wordGraph?.lexeme?.id }),
+      );
+      expect(expressionGraph?.expression?.expressionType).toBe('expression');
+      expect(sentenceGraph?.expression?.expressionType).toBe('sentence');
+      expect((await migrated.getReviewItem('legacy-review'))?.learningObjectId).toBe('legacy-word');
     } finally {
       await legacyDb.close();
     }
