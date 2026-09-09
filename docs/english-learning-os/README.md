@@ -52,6 +52,8 @@ The first implementation slice includes:
 - a Readest `DatabaseService` adapter and isolated `learning.db` migrations;
 - an official `ts-fsrs` adapter driven by immutable, idempotent review events;
 - a Learning Orchestrator for semantic deduplication, occurrences, review scheduling, and Today projections;
+- a canonical Lexeme/Form/Sense/Expression graph behind `LexiconRepositoryPort`, with stable SavedLearningObject review targets and source Occurrences;
+- transactional SQLite graph writes plus a compatibility migration that preserves existing learning-object and review IDs; unresolved legacy/new Sense targets are never assigned fabricated definitions;
 - conversion from Readest text selections to stable `SelectionContext` and Readium-style locators;
 - a Learn action in the existing reader toolbar;
 - responsive Context Panel, Today, Review, and Progress interfaces;
@@ -80,7 +82,7 @@ Platform AI operations use `AI_GATEWAY_API_KEY` on the server. `AI_DAILY_ACTION_
 
 ## Not complete yet
 
-This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires lexical and annotation single-truth migrations, production metric queries, browseable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, operator feedback triage tooling, broader resource limits, and public-beta hardening.
+This slice is architecture and the first end-to-end local flow, not the public MVP release. The release still requires annotation single-truth migration, explicit dictionary-selected Sense enrichment, production metric queries, browseable Artifact history, locator re-anchoring after source changes, account-associated replica-sync categories, export/deletion, operator feedback triage tooling, broader resource limits, and public-beta hardening.
 
 See [`MVP_STATUS.md`](./MVP_STATUS.md) for evidence-backed milestone status, the correction queue, and release gates.
 
@@ -107,3 +109,15 @@ On constrained Windows hosts, TypeScript 7's native checker may require reduced 
 ## Documentation truth
 
 Engineering architecture and implementation status are versioned in this directory. Research, PRD, validation, and historical planning documents outside the Fork remain inputs; when they conflict with implemented evidence or this baseline, record and reconcile the decision rather than silently drifting.
+
+### Resuming work without chat history
+
+The repository, not a chat transcript, is the durable engineering memory. Resume in this order:
+
+1. fetch `origin/mvp/reading-learning-loop` and inspect the local/remote divergence;
+2. read `ARCHITECTURE_BASELINE.md` for non-negotiable boundaries and ownership;
+3. read `MVP_STATUS.md` for implemented evidence, correction order, and release gates;
+4. inspect commits after the pinned Readest baseline instead of inferring completion from plans;
+5. run the relevant tests, lint, and build before advancing the first unfinished correction.
+
+Every implementation batch should end with a focused code commit, an evidence/status update when the truth changed, and a pushed remote branch. Chat discussions may explain intent, but they do not override tested code, recorded decisions, or explicit unresolved gaps.

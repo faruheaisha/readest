@@ -214,7 +214,7 @@ Reuse an engine, algorithm, provider, or standard. Do not embed a second applica
 The following are explicit migration gaps. They do not redefine the target architecture:
 
 - Translation and dictionary lookup now use the complete Action Runtime path. Dictionary Artifacts keep a portable, inert text representation; Readest's existing rich provider surface remains an explicit presentation fallback for images, links, custom styles, and OS dictionary handoff.
-- Learning-object persistence is currently flattened and does not yet implement the Lexeme/Form/Sense/Expression/Occurrence graph.
+- Learning-object persistence now uses the minimum viable Lexeme/Form/Sense/Expression/Occurrence graph. SavedLearningObject remains the stable review target, points to canonical lexical nodes, and keeps existing Occurrence and review references compatible. A Sense is `unresolved` until a concrete dictionary meaning is selected; dictionary-to-Sense enrichment and multi-sense identity remain explicit follow-up work rather than fabricated data.
 - The new annotation contract and table are not yet connected to Readest BookNote; they must not become a second annotation truth.
 - Plugin, job, config, and telemetry runtimes are only wired where the current vertical slice uses them. The Event Runtime now persists and projects versioned save, Activity, memory-review, and source-return facts.
 - Replica-sync learning categories, export/deletion, conflict rules, and locator re-anchoring are incomplete.

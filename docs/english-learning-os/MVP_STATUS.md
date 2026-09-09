@@ -14,7 +14,7 @@ This document reports implemented evidence, migration gaps, and release gates. I
 | M0 — Readest baseline | Substantially complete | Fork/upstream remotes, pinned commit, baseline tests, and reuse policy exist. A durable component/license provenance inventory still needs automation. |
 | M1 — Contracts + Kernel Spine | Substantially complete | Domain contracts, Ports, registries, manifests, lifecycle, and contract tests exist. Runtimes are intentionally production-wired only for current use cases. |
 | M2 — Identity, local data, optional sync | Partial | Stable guest identity and idempotent guest-to-account ownership linking exist. Learning-category replica sync, export, deletion, and explicit sync controls remain. |
-| M3 — Content + Context Panel | Partial | Readest selection conversion, Locator context, responsive Context Panel, local learning saves, dictionary/translation/AI Action and Artifact flows, and source return exist. Lexical graph persistence, annotation ownership, and re-anchoring remain. Rich dictionary interactions continue through the original Readest surface. |
+| M3 — Content + Context Panel | Partial | Readest selection conversion, Locator context, responsive Context Panel, local learning saves, canonical Lexeme/Form/Sense/Expression/Occurrence persistence, dictionary/translation/AI Action and Artifact flows, and source return exist. Annotation ownership, dictionary-selected Sense enrichment, and re-anchoring remain. Rich dictionary interactions continue through the original Readest surface. |
 | M4 — Practice + FSRS + Today | Substantially complete | Recognition, typing, spelling, cloze, immutable review events, FSRS scheduling, Today projection, delayed review, and return-to-source are implemented and tested. |
 | M5 — Progress, feedback, operations | Partial | The minimal Beta evidence list, privacy-gated telemetry delivery, Learning-event Progress projection, and consent-gated feedback submission exist. Metric queries, operator triage, quotas dashboard, and OpenTelemetry operations remain. |
 | M6 — Public MVP hardening | Not started | Accessibility audit, weak-network validation, end-to-end data controls, backups, resource isolation, legal surfaces, staged rollout, and production evidence are outstanding. |
@@ -36,24 +36,27 @@ This document reports implemented evidence, migration gaps, and release gates. I
 | `b58d2ff0` | Versioned Beta evidence contracts, privacy-safe telemetry runtime, source-return facts, and legacy event migration |
 | `9acd1d8b` | Privacy-minimized content import lifecycle and successfully initialized Reader-open evidence |
 | `8ca330ba` | One-per-session Web network timing reduced to coarse TTFB/API latency buckets |
+| `18ed2cd5` | Canonical lexical graph, transactional persistence, Domain invariants, and ID-preserving legacy migration |
 
 ## Correction queue
 
 These corrections have higher priority than adding new feature areas:
 
-1. **Lexicon truth:** replace flattened learning-object persistence with the minimum viable Lexeme/Form/Sense/Expression/Occurrence graph while preserving current IDs and behavior.
-2. **Annotation truth:** adapt Readest BookNote into the owned Annotation contract, or migrate it; do not maintain two writable truths.
-3. **Sync and data control:** add learning replica categories, conflict policies, export, deletion, and locator re-anchoring.
+1. **Annotation truth:** adapt Readest BookNote into the owned Annotation contract, or migrate it; do not maintain two writable truths.
+2. **Sync and data control:** add learning replica categories, conflict policies, export, deletion, and locator re-anchoring.
+3. **Sense enrichment:** connect an explicitly selected dictionary definition to a resolved Sense and freeze multi-sense identity before exposing multiple senses for one Lexeme. Current word/sense saves remain separate review targets, but a Sense without a chosen definition is deliberately marked `unresolved` rather than assigned invented meaning.
 
 ## Verification evidence
 
 The latest implementation validation completed successfully before this documentation calibration:
 
-- 17 learning/feedback/library test files, 53 tests passed.
+- 15 learning test files, 51 tests passed, including canonical sharing, atomic rollback, and legacy graph migration.
 - TypeScript and Biome lint passed across the Readest app.
 - Web production build passed.
 
-The minimal Beta event list is now connected: strict schemas reject selected text; analysis uses a separate pseudonymous identity; review facts are idempotent; legacy save/review facts have a tested SQLite migration; import/open signals use existing Readest orchestration boundaries; and one Web network sample per session stores only coarse latency buckets. This proves contract and integration behavior, not that production analytics, target-network performance, or product hypotheses have been validated.
+Lexicon is now one writable graph truth: word and sense review targets can share one canonical Lexeme and lemma Form; expression and sentence targets retain distinct typed Expression nodes; Occurrences continue to point at stable learning-object IDs; and old saves/review references are backfilled without ID rewrites. New and migrated Senses remain explicitly unresolved until the user selects a real dictionary meaning.
+
+The minimal Beta event list is also connected: strict schemas reject selected text; analysis uses a separate pseudonymous identity; review facts are idempotent; legacy save/review facts have a tested SQLite migration; import/open signals use existing Readest orchestration boundaries; and one Web network sample per session stores only coarse latency buckets. This proves contract and integration behavior, not that production analytics, target-network performance, or product hypotheses have been validated.
 
 This is evidence for the new learning slice and whole-app static/build compatibility. It is not evidence that every upstream platform test, multi-device sync path, target network, or production recovery scenario has passed.
 
