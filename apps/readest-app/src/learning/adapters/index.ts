@@ -10,4 +10,5 @@ export * from './learning-events';
 export * from './readest-dictionary';
 export * from './action-policy';
 export * from './readest-identity';
+export * from './readest-annotation';
 export * from './feedback';

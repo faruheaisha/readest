@@ -18,6 +18,8 @@ import {
   LearningEventRuntimeAdapter,
   PlatformAIProviderAdapter,
   ProviderEnforcedQuotaAdapter,
+  createReadestAnnotationDocumentLoader,
+  ReadestAnnotationAdapter,
   ReadestLearningDatabaseAdapter,
   ReadestAIProviderAdapter,
   ReadestDictionaryProviderAdapter,
@@ -46,6 +48,7 @@ import {
 import { TELEMETRY_EVENT_CONTRACT_VERSION } from '../domain';
 import type {
   AIProviderPort,
+  AnnotationRepositoryPort,
   DictionaryProviderPort,
   FeedbackPort,
   IdentityPort,
@@ -56,6 +59,7 @@ import type {
 export interface LearningRuntime {
   database: DatabaseService;
   repository: ReadestLearningDatabaseAdapter;
+  annotations: AnnotationRepositoryPort;
   orchestrator: LearningOrchestrator;
   activities: ActivityRegistry;
   practice: ActivityPracticeService;
@@ -125,6 +129,9 @@ export const createLearningRuntime = async (
 ): Promise<LearningRuntime> => {
   await migrate(database, getMigrations('learning'));
   const repository = new ReadestLearningDatabaseAdapter(database);
+  const annotations = new ReadestAnnotationAdapter(
+    createReadestAnnotationDocumentLoader(appService),
+  );
   const guestId = await repository.getOrCreateGuestId(
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? `guest-${crypto.randomUUID()}`
@@ -243,6 +250,7 @@ export const createLearningRuntime = async (
   return {
     database,
     repository,
+    annotations,
     activities,
     actions,
     aiProviders,

@@ -171,10 +171,12 @@ export interface Annotation {
   contentId: string;
   contentVersionId: string;
   locator: Locator;
-  motivation: 'highlighting' | 'commenting' | 'bookmarking' | 'classifying';
+  motivations: readonly ('highlighting' | 'commenting' | 'bookmarking' | 'classifying')[];
   body?: string;
+  sourceText?: string;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date | null;
 }
 
 export type ActivityKind = 'recognition' | 'typing' | 'spelling' | 'cloze';

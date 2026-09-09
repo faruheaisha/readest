@@ -31,7 +31,7 @@ describe('Readest selection adapter', () => {
 
     expect(context).toMatchObject({
       contentId: 'book-hash',
-      contentVersionId: 'book-hash:42',
+      contentVersionId: 'book-hash:source',
       text: 'differential diagnosis',
       language: 'en-US',
       locator: {
@@ -45,6 +45,18 @@ describe('Readest selection adapter', () => {
         text: { highlight: 'differential diagnosis' },
       },
     });
+
+    const afterConfigChange = createReadestSelectionContext({
+      book: {
+        hash: 'book-hash',
+        updatedAt: 9_999,
+        title: 'Clinical English',
+      },
+      bookKey: 'book-hash-window-2',
+      selection: { text: 'differential diagnosis', page: 7 },
+      progress: null,
+    });
+    expect(afterConfigChange.contentVersionId).toBe(context.contentVersionId);
   });
 
   it('falls back without inventing an unavailable CFI', () => {
@@ -56,7 +68,7 @@ describe('Readest selection adapter', () => {
     });
 
     expect(context.contentId).toBe('transient-view');
-    expect(context.contentVersionId).toBe('transient-view:local');
+    expect(context.contentVersionId).toBe('transient-view:source');
     expect(context.locator.locations).toEqual({});
     expect(context.locator.locations).not.toHaveProperty('cfi');
   });

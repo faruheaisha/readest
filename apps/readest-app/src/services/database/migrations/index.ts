@@ -575,6 +575,13 @@ const migrations: Record<SchemaType, MigrationEntry[]> = {
         ON learning_objects (expression_id);
       `,
     },
+    {
+      name: '2026090903_learning_annotation_truth',
+      sql: `
+        ALTER TABLE learning_annotations
+        RENAME TO learning_annotations_legacy;
+      `,
+    },
   ],
   reedy: [
     {

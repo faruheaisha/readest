@@ -65,8 +65,11 @@ export interface DictionaryProviderPort {
 
 export interface AnnotationRepositoryPort {
   save(annotation: Annotation): Promise<void>;
-  listByContent(contentId: string): Promise<readonly Annotation[]>;
-  delete(id: string): Promise<void>;
+  listByContent(
+    contentId: string,
+    options?: { includeDeleted?: boolean },
+  ): Promise<readonly Annotation[]>;
+  delete(contentId: string, id: string, deletedAt?: Date): Promise<void>;
 }
 
 export interface ActivityRepositoryPort {

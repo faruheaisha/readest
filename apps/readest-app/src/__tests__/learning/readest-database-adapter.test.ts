@@ -30,7 +30,7 @@ describe('ReadestLearningDatabaseAdapter', () => {
       'learning_activity_attempts',
       'learning_activity_results',
       'learning_activity_specs',
-      'learning_annotations',
+      'learning_annotations_legacy',
       'learning_artifacts',
       'learning_events',
       'learning_expressions',
@@ -388,6 +388,36 @@ describe('ReadestLearningDatabaseAdapter', () => {
       expect(expressionGraph?.expression?.expressionType).toBe('expression');
       expect(sentenceGraph?.expression?.expressionType).toBe('sentence');
       expect((await migrated.getReviewItem('legacy-review'))?.learningObjectId).toBe('legacy-word');
+    } finally {
+      await legacyDb.close();
+    }
+  });
+
+  it('retires the unused annotation table without discarding unexpected legacy rows', async () => {
+    const legacyDb = await NodeDatabaseService.open(':memory:');
+    const migrations = getMigrations('learning');
+    const annotationMigrationIndex = migrations.findIndex(
+      (migration) => migration.name === '2026090903_learning_annotation_truth',
+    );
+
+    try {
+      await migrate(legacyDb, migrations.slice(0, annotationMigrationIndex));
+      await legacyDb.execute(
+        `INSERT INTO learning_annotations
+          (id, content_id, content_version_id, locator_json, motivation, body, created_at, updated_at)
+         VALUES ('unexpected-row', 'book-1', 'book-1:v1', '{}', 'highlighting', NULL, 1, 1)`,
+      );
+
+      await migrate(legacyDb, migrations);
+
+      const activeTable = await legacyDb.select(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'learning_annotations'",
+      );
+      const archivedRows = await legacyDb.select<{ id: string }>(
+        'SELECT id FROM learning_annotations_legacy',
+      );
+      expect(activeTable).toEqual([]);
+      expect(archivedRows).toEqual([{ id: 'unexpected-row' }]);
     } finally {
       await legacyDb.close();
     }

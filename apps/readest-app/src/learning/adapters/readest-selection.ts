@@ -2,11 +2,13 @@ import type { Locator, SelectionContext } from '@/learning/domain';
 
 interface ReadestBookIdentity {
   hash: string;
-  updatedAt: number;
+  updatedAt?: number;
   title: string;
   filePath?: string;
   primaryLanguage?: string;
 }
+
+export const getReadestContentVersionId = (contentId: string): string => `${contentId}:source`;
 
 interface ReadestSelectionSnapshot {
   text: string;
@@ -40,7 +42,7 @@ export const createReadestSelectionContext = ({
 
   return {
     contentId,
-    contentVersionId: `${contentId}:${book?.updatedAt ?? 'local'}`,
+    contentVersionId: getReadestContentVersionId(contentId),
     text: selection.text.trim(),
     language: book?.primaryLanguage ?? 'en',
     locator: {
