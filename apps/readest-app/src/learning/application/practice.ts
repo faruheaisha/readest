@@ -5,6 +5,7 @@ import type {
   Occurrence,
   SavedLearningObject,
 } from '../domain';
+import { LEARNING_EVENT_CONTRACT_VERSION } from '../domain';
 import type { ActivityRegistry } from '../kernel';
 import type { ActivityRepositoryPort, LearningEventPort } from '../ports';
 
@@ -14,15 +15,18 @@ export interface ActivityPracticeDependencies {
   events: LearningEventPort;
   now?: () => Date;
   createId?: () => string;
+  eventContext?: () => { clientSessionId: string; actorId?: string };
 }
 
 export class ActivityPracticeService {
   private readonly now: () => Date;
   private readonly createId: () => string;
+  private readonly eventContext: () => { clientSessionId: string; actorId?: string };
 
   constructor(private readonly dependencies: ActivityPracticeDependencies) {
     this.now = dependencies.now ?? (() => new Date());
     this.createId = dependencies.createId ?? (() => crypto.randomUUID());
+    this.eventContext = dependencies.eventContext ?? (() => ({ clientSessionId: 'local-session' }));
   }
 
   async createSpec(
@@ -49,12 +53,21 @@ export class ActivityPracticeService {
     };
     const result = this.dependencies.registry.requireKind(spec.kind).evaluate(attempt, spec);
     await this.dependencies.repository.saveAttempt(attempt, result);
+    const context = this.eventContext();
     await this.dependencies.events.publish({
-      id: this.createId(),
-      type: 'practice_completed',
+      id: `activity:${attempt.id}`,
+      contractVersion: LEARNING_EVENT_CONTRACT_VERSION,
+      type: 'activity_completed',
       occurredAt: completedAt,
+      clientSessionId: context.clientSessionId,
+      ...(context.actorId ? { actorId: context.actorId } : {}),
       aggregateId: spec.learningObjectId,
-      properties: { activity: spec.kind, correct: result.correct, score: result.score },
+      properties: {
+        activityType: spec.kind,
+        resultBucket: result.correct ? 'correct' : 'incorrect',
+        attemptId: attempt.id,
+        memorySubjectId: spec.learningObjectId,
+      },
     });
     return result;
   }

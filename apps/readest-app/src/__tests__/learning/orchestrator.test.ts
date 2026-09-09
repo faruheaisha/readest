@@ -82,7 +82,9 @@ describe('LearningOrchestrator', () => {
     expect((await memory.getSchedule(reviewItem.id))?.dueAt.toISOString()).toBe(
       '2026-09-08T12:00:00.000Z',
     );
-    expect(events.all().filter((event) => event.type === 'review_completed')).toHaveLength(1);
+    expect(events.all().filter((event) => event.type === 'memory_review_completed')).toHaveLength(
+      1,
+    );
   });
 
   it('returns one canonical review item under concurrent creation', async () => {

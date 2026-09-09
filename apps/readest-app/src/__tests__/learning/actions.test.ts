@@ -16,10 +16,16 @@ import type {
   DictionaryProviderPort,
   PolicyPort,
   QuotaPort,
+  TelemetryPort,
   TranslationProviderPort,
 } from '@/learning/ports';
-import type { Artifact, SelectionContext } from '@/learning/domain';
-import { PolicyRuntime } from '@/learning/kernel';
+import {
+  TELEMETRY_EVENT_CONTRACT_VERSION,
+  type Artifact,
+  type SelectionContext,
+  type TelemetryEvent,
+} from '@/learning/domain';
+import { PolicyRuntime, TelemetryRuntime } from '@/learning/kernel';
 
 const selection: SelectionContext = {
   contentId: 'book-1',
@@ -130,6 +136,59 @@ describe('learning AI action runtime', () => {
     providers.register('ai.explain', available);
 
     expect((await providers.resolve('ai.explain')).describe().id).toBe('configured');
+  });
+
+  it('records a privacy-safe context action without selected text', async () => {
+    const actions = new ActionRegistry();
+    actions.register('ai.explain', {
+      id: 'ai.explain',
+      capability: 'ai.explain',
+      title: 'AI Explain',
+      inputKinds: ['word', 'sense', 'expression', 'sentence'],
+      outputKind: 'explanation',
+    });
+    const captured: TelemetryEvent[] = [];
+    const telemetryPort: TelemetryPort = {
+      capture: async (event) => {
+        captured.push(event);
+      },
+    };
+    const runtime = new ExecutionRuntime(
+      actions,
+      new ContractSchemaRegistry(),
+      undefined,
+      new TelemetryRuntime(telemetryPort),
+    );
+    runtime.register('ai.explain', {
+      execute: async () => makeArtifact('english-learning-os.platform-ai', 'zh-CN'),
+    });
+
+    await runtime.execute({
+      actionId: 'ai.explain',
+      selection,
+      subjectId: 'subject-1',
+      idempotencyKey: 'action-1',
+      clientSessionId: 'session-1',
+      telemetryActorId: 'guest-1',
+      locale: 'zh-CN',
+    });
+
+    expect(captured).toEqual([
+      {
+        id: 'telemetry:context-action:action-1',
+        contractVersion: TELEMETRY_EVENT_CONTRACT_VERSION,
+        name: 'context_action_completed',
+        occurredAt: expect.any(Date),
+        clientSessionId: 'session-1',
+        actorId: 'guest-1',
+        properties: {
+          actionType: 'ai_explain',
+          latencyMs: expect.any(Number),
+          providerClass: 'platform',
+        },
+      },
+    ]);
+    expect(JSON.stringify(captured)).not.toContain(selection.text);
   });
 });
 

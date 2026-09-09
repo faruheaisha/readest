@@ -43,7 +43,10 @@ export default function ReviewPage() {
   const [cards, setCards] = useState<DueCard[] | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [lastSource, setLastSource] = useState<Occurrence | null>(null);
+  const [lastSource, setLastSource] = useState<{
+    occurrence: Occurrence;
+    memorySubjectId: string;
+  } | null>(null);
   const [activityKind, setActivityKind] = useState<ActivityKind>('cloze');
   const [activitySpec, setActivitySpec] = useState<ActivitySpec | null>(null);
   const [activityResult, setActivityResult] = useState<ActivityResult | null>(null);
@@ -126,7 +129,11 @@ export default function ReviewPage() {
         );
       }
       await runtime.orchestrator.submitReview(card.reviewItem.id, rating, crypto.randomUUID());
-      setLastSource(card.occurrence ?? null);
+      setLastSource(
+        card.occurrence
+          ? { occurrence: card.occurrence, memorySubjectId: card.learningObject.id }
+          : null,
+      );
       await load();
     } finally {
       setSubmitting(false);
@@ -156,12 +163,23 @@ export default function ReviewPage() {
                 type='button'
                 className='btn btn-success btn-sm shrink-0'
                 onClick={() => {
-                  const target = getReadestReturnTarget(lastSource);
-                  navigateToReader(
-                    router,
-                    [target.bookHash],
-                    `cfi=${encodeURIComponent(target.location)}`,
-                  );
+                  const target = getReadestReturnTarget(lastSource.occurrence);
+                  const navigate = () =>
+                    navigateToReader(
+                      router,
+                      [target.bookHash],
+                      `cfi=${encodeURIComponent(target.location)}`,
+                    );
+                  if (!runtime) {
+                    navigate();
+                    return;
+                  }
+                  void runtime.orchestrator
+                    .recordSourceReturn(lastSource.occurrence, lastSource.memorySubjectId)
+                    .catch(() => {
+                      console.warn('Source-return learning event could not be recorded');
+                    })
+                    .finally(navigate);
                 }}
               >
                 {_('Return to source')}

@@ -1,5 +1,5 @@
 import type { DatabaseService } from '@/types/database';
-import { locatorSchema, selectionContextSchema } from '../contracts';
+import { learningEventSchema, locatorSchema, selectionContextSchema } from '../contracts';
 import type {
   ActivityAttempt,
   ActivityResult,
@@ -107,7 +107,9 @@ interface ScheduleRow {
 interface LearningEventRow {
   id: string;
   type: LearningEventType;
+  contract_version: string;
   occurred_at: number;
+  client_session_id: string;
   actor_id: string | null;
   aggregate_id: string | null;
   properties_json: string;
@@ -594,18 +596,21 @@ export class ReadestLearningDatabaseAdapter
   }
 
   async publish(event: LearningEvent): Promise<void> {
+    const validEvent = learningEventSchema.parse(event);
     await this.db.execute(
       `INSERT INTO learning_events
-        (id, type, occurred_at, actor_id, aggregate_id, properties_json)
-       VALUES (?, ?, ?, ?, ?, ?)
+        (id, contract_version, type, occurred_at, client_session_id, actor_id, aggregate_id, properties_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO NOTHING`,
       [
-        event.id,
-        event.type,
-        event.occurredAt.getTime(),
-        event.actorId ?? null,
-        event.aggregateId ?? null,
-        JSON.stringify(event.properties),
+        validEvent.id,
+        validEvent.contractVersion,
+        validEvent.type,
+        validEvent.occurredAt.getTime(),
+        validEvent.clientSessionId,
+        validEvent.actorId ?? null,
+        validEvent.aggregateId ?? null,
+        JSON.stringify(validEvent.properties),
       ],
     );
   }
@@ -614,14 +619,18 @@ export class ReadestLearningDatabaseAdapter
     const rows = await this.db.select<LearningEventRow>(
       'SELECT * FROM learning_events ORDER BY occurred_at, id',
     );
-    return rows.map((row) => ({
-      id: row.id,
-      type: row.type,
-      occurredAt: new Date(row.occurred_at),
-      actorId: row.actor_id ?? undefined,
-      aggregateId: row.aggregate_id ?? undefined,
-      properties: JSON.parse(row.properties_json) as LearningEvent['properties'],
-    }));
+    return rows.map((row) =>
+      learningEventSchema.parse({
+        id: row.id,
+        contractVersion: row.contract_version,
+        type: row.type,
+        occurredAt: new Date(row.occurred_at),
+        clientSessionId: row.client_session_id,
+        ...(row.actor_id ? { actorId: row.actor_id } : {}),
+        ...(row.aggregate_id ? { aggregateId: row.aggregate_id } : {}),
+        properties: JSON.parse(row.properties_json),
+      }),
+    );
   }
 
   getOrCreateGuestId(candidateId: string): Promise<string> {

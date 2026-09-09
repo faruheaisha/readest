@@ -30,7 +30,7 @@ export default function ProgressPage() {
   }, [runtime]);
 
   const stats = useMemo(() => {
-    const reviews = events?.filter((event) => event.type === 'review_completed').length ?? 0;
+    const reviews = events?.filter((event) => event.type === 'memory_review_completed').length ?? 0;
     const activeDays = new Set(events?.map((event) => event.occurredAt.toISOString().slice(0, 10)))
       .size;
     return [

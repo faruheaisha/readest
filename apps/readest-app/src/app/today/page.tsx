@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { LearningShell, LearningState } from '@/components/learning/LearningShell';
 import { useEnv } from '@/context/EnvContext';
 import { useTranslation } from '@/hooks/useTranslation';
+import { TELEMETRY_EVENT_CONTRACT_VERSION } from '@/learning/domain';
 import type { SavedLearningObject, TodayPlan } from '@/learning/domain';
 import { useLearningRuntime } from '@/learning/runtime';
 
@@ -14,6 +15,19 @@ export default function TodayPage() {
   const { runtime, error } = useLearningRuntime(appService);
   const [plan, setPlan] = useState<TodayPlan | null>(null);
   const [objects, setObjects] = useState<Record<string, SavedLearningObject>>({});
+
+  const recordPlanStart = () => {
+    if (!runtime) return;
+    void runtime.telemetry.capture({
+      id: `telemetry:today-start:${crypto.randomUUID()}`,
+      contractVersion: TELEMETRY_EVENT_CONTRACT_VERSION,
+      name: 'today_plan_started',
+      occurredAt: new Date(),
+      clientSessionId: runtime.clientSessionId,
+      actorId: runtime.guestId,
+      properties: { activityType: 'review' },
+    });
+  };
 
   useEffect(() => {
     if (!runtime) return;
@@ -65,6 +79,7 @@ export default function TodayPage() {
                 <Link
                   key={item.id}
                   href='/review'
+                  onClick={recordPlanStart}
                   className='border-base-300 bg-base-200/40 hover:border-primary/40 rounded-2xl border p-5 transition-colors'
                 >
                   <p className='text-primary text-xs font-semibold uppercase'>{_('Due review')}</p>

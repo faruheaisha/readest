@@ -10,6 +10,7 @@ import type {
   TodayPlan,
   TodayPlanItem,
 } from '../domain';
+import { LEARNING_EVENT_CONTRACT_VERSION } from '../domain';
 import type {
   LearningEventPort,
   LearningOrchestratorPort,
@@ -27,25 +28,50 @@ export interface LearningOrchestratorDependencies {
   events: LearningEventPort;
   now?: () => Date;
   createId?: () => string;
+  eventContext?: () => { clientSessionId: string; actorId?: string };
 }
 
 const defaultCreateId = (): string => crypto.randomUUID();
 const normalizeText = (text: string): string =>
   text.trim().replace(/\s+/gu, ' ').toLocaleLowerCase();
 const dateKey = (date: Date): string => date.toISOString().slice(0, 10);
+const dueDeltaBucket = (
+  dueAt: Date | undefined,
+  occurredAt: Date,
+): 'early' | 'on_time' | 'late' | 'unknown' => {
+  if (!dueAt) return 'unknown';
+  const delta = occurredAt.getTime() - dueAt.getTime();
+  if (delta < 0) return 'early';
+  return delta <= 24 * 60 * 60 * 1000 ? 'on_time' : 'late';
+};
+const locatorType = (
+  occurrence: Occurrence,
+): 'cfi' | 'css_selector' | 'fragment' | 'progression' | 'unknown' => {
+  const locations = occurrence.locator.locations;
+  if (locations.cfi) return 'cfi';
+  if (locations.cssSelector) return 'css_selector';
+  if (locations.fragment) return 'fragment';
+  if (locations.progression !== undefined || locations.totalProgression !== undefined) {
+    return 'progression';
+  }
+  return 'unknown';
+};
 
 export class LearningOrchestrator implements LearningOrchestratorPort {
   private readonly now: () => Date;
   private readonly createId: () => string;
+  private readonly eventContext: () => { clientSessionId: string; actorId?: string };
 
   constructor(private readonly dependencies: LearningOrchestratorDependencies) {
     this.now = dependencies.now ?? (() => new Date());
     this.createId = dependencies.createId ?? defaultCreateId;
+    this.eventContext = dependencies.eventContext ?? (() => ({ clientSessionId: 'local-session' }));
   }
 
   async saveSelection(
     selection: SelectionContext,
     kind: LearningObjectKind,
+    saveMode: 'save' | 'save_and_practice' = 'save',
   ): Promise<{ learningObject: SavedLearningObject; created: boolean }> {
     const now = this.now();
     const learningObject: SavedLearningObject = {
@@ -68,12 +94,21 @@ export class LearningOrchestrator implements LearningOrchestratorPort {
     };
     const result = await this.dependencies.lexicon.upsertLearningObject(learningObject, occurrence);
     if (result.created) {
+      const context = this.eventContext();
       await this.dependencies.events.publish({
         id: this.createId(),
+        contractVersion: LEARNING_EVENT_CONTRACT_VERSION,
         type: 'learning_object_saved',
         occurredAt: now,
+        clientSessionId: context.clientSessionId,
+        ...(context.actorId ? { actorId: context.actorId } : {}),
         aggregateId: result.learningObject.id,
-        properties: { kind, contentId: selection.contentId },
+        properties: {
+          objectType: kind,
+          saveMode,
+          contentId: selection.contentId,
+          memorySubjectId: result.learningObject.id,
+        },
       });
     }
     return { learningObject: result.learningObject, created: result.created };
@@ -129,14 +164,41 @@ export class LearningOrchestrator implements LearningOrchestratorPort {
       previousSchedule ?? undefined,
     );
     await this.dependencies.memory.saveSchedule(schedule);
+    const context = this.eventContext();
     await this.dependencies.events.publish({
-      id: this.createId(),
-      type: 'review_completed',
+      id: `memory-review:${appended.event.id}`,
+      contractVersion: LEARNING_EVENT_CONTRACT_VERSION,
+      type: 'memory_review_completed',
       occurredAt: appended.event.occurredAt,
+      clientSessionId: context.clientSessionId,
+      ...(context.actorId ? { actorId: context.actorId } : {}),
       aggregateId: reviewItemId,
-      properties: { rating, learningObjectId: item.learningObjectId },
+      properties: {
+        memorySubjectId: item.learningObjectId,
+        ratingClass: rating,
+        dueDeltaBucket: dueDeltaBucket(previousSchedule?.dueAt, appended.event.occurredAt),
+        reviewEventId: appended.event.id,
+      },
     });
     return { event: appended.event, schedule };
+  }
+
+  async recordSourceReturn(occurrence: Occurrence, memorySubjectId: string): Promise<void> {
+    const context = this.eventContext();
+    await this.dependencies.events.publish({
+      id: this.createId(),
+      contractVersion: LEARNING_EVENT_CONTRACT_VERSION,
+      type: 'source_context_returned',
+      occurredAt: this.now(),
+      clientSessionId: context.clientSessionId,
+      ...(context.actorId ? { actorId: context.actorId } : {}),
+      aggregateId: memorySubjectId,
+      properties: {
+        contentId: occurrence.contentId,
+        locatorType: locatorType(occurrence),
+        memorySubjectId,
+      },
+    });
   }
 
   async getTodayPlan(): Promise<TodayPlan> {

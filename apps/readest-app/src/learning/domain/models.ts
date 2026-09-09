@@ -244,24 +244,70 @@ export interface TodayPlan {
   generatedAt: Date;
 }
 
-export type LearningEventType =
-  | 'content_import_completed'
-  | 'content_opened'
-  | 'context_action_completed'
-  | 'learning_object_saved'
-  | 'practice_completed'
-  | 'review_due_presented'
-  | 'review_completed'
-  | 'source_returned'
-  | 'second_content_imported'
-  | 'today_plan_started';
+export const LEARNING_EVENT_CONTRACT_VERSION = '1.0.0' as const;
+export const TELEMETRY_EVENT_CONTRACT_VERSION = '1.0.0' as const;
 
-export interface LearningEvent {
+export type LearningEventType =
+  | 'learning_object_saved'
+  | 'activity_completed'
+  | 'memory_review_completed'
+  | 'source_context_returned';
+
+interface LearningEventEnvelope<TType extends LearningEventType, TProperties> {
   id: string;
-  type: LearningEventType;
+  contractVersion: typeof LEARNING_EVENT_CONTRACT_VERSION;
+  type: TType;
   occurredAt: Date;
+  clientSessionId: string;
   actorId?: string;
   aggregateId?: string;
+  properties: Readonly<TProperties>;
+}
+
+export type LearningEvent =
+  | LearningEventEnvelope<
+      'learning_object_saved',
+      {
+        objectType: LearningObjectKind;
+        saveMode: 'save' | 'save_and_practice';
+        contentId: string;
+        memorySubjectId: string;
+      }
+    >
+  | LearningEventEnvelope<
+      'activity_completed',
+      {
+        activityType: ActivityKind;
+        resultBucket: 'correct' | 'incorrect';
+        attemptId: string;
+        memorySubjectId: string;
+      }
+    >
+  | LearningEventEnvelope<
+      'memory_review_completed',
+      {
+        memorySubjectId: string;
+        ratingClass: ReviewRating;
+        dueDeltaBucket: 'early' | 'on_time' | 'late' | 'unknown';
+        reviewEventId: string;
+      }
+    >
+  | LearningEventEnvelope<
+      'source_context_returned',
+      {
+        contentId: string;
+        locatorType: 'cfi' | 'css_selector' | 'fragment' | 'progression' | 'unknown';
+        memorySubjectId: string;
+      }
+    >;
+
+export interface TelemetryEvent {
+  id: string;
+  contractVersion: typeof TELEMETRY_EVENT_CONTRACT_VERSION;
+  name: string;
+  occurredAt: Date;
+  clientSessionId: string;
+  actorId?: string;
   properties: Readonly<Record<string, string | number | boolean | null>>;
 }
 

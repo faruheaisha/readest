@@ -6,6 +6,7 @@ import { LearningShell, LearningState } from '@/components/learning/LearningShel
 import { useEnv } from '@/context/EnvContext';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useLearningRuntime } from '@/learning/runtime';
+import { TELEMETRY_EVENT_CONTRACT_VERSION } from '@/learning/domain';
 
 type SubmissionStatus = 'idle' | 'submitting' | 'succeeded' | 'failed';
 
@@ -32,6 +33,15 @@ export default function FeedbackPage() {
               platform: 'web',
             }
           : undefined,
+      });
+      void runtime.telemetry.capture({
+        id: `telemetry:feedback:${crypto.randomUUID()}`,
+        contractVersion: TELEMETRY_EVENT_CONTRACT_VERSION,
+        name: 'feedback_submitted',
+        occurredAt: new Date(),
+        clientSessionId: runtime.clientSessionId,
+        actorId: runtime.guestId,
+        properties: { category: 'other', route: window.location.pathname },
       });
       setMessage('');
       setStatus('succeeded');

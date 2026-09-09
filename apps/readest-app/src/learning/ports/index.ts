@@ -22,6 +22,7 @@ import type {
   SavedLearningObject,
   Schedule,
   SelectionContext,
+  TelemetryEvent,
   TodayPlan,
 } from '../domain';
 
@@ -112,7 +113,9 @@ export interface LearningOrchestratorPort {
   saveSelection(
     selection: SelectionContext,
     kind: LearningObjectKind,
+    saveMode?: 'save' | 'save_and_practice',
   ): Promise<{ learningObject: SavedLearningObject; created: boolean }>;
+  recordSourceReturn(occurrence: Occurrence, memorySubjectId: string): Promise<void>;
   getTodayPlan(): Promise<TodayPlan>;
 }
 
@@ -211,11 +214,7 @@ export interface FeedbackPort {
 }
 
 export interface TelemetryPort {
-  capture(event: {
-    name: string;
-    occurredAt: Date;
-    properties: Readonly<Record<string, string | number | boolean | null>>;
-  }): Promise<void>;
+  capture(event: TelemetryEvent): Promise<void>;
 }
 
 export interface LearningEventPort {

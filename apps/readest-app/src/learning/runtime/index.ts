@@ -14,12 +14,14 @@ import {
   createActivityEngines,
   FsrsMemorySchedulerAdapter,
   HttpFeedbackAdapter,
+  LearningEventRuntimeAdapter,
   PlatformAIProviderAdapter,
   ProviderEnforcedQuotaAdapter,
   ReadestLearningDatabaseAdapter,
   ReadestAIProviderAdapter,
   ReadestDictionaryProviderAdapter,
   ReadestIdentityAdapter,
+  ReadestTelemetryAdapter,
   ReadestTranslationProviderAdapter,
 } from '../adapters';
 import {
@@ -33,15 +35,19 @@ import {
   ActionRegistry,
   ActivityRegistry,
   ContractSchemaRegistry,
+  EventRuntime,
   ExecutionRuntime,
   PolicyRuntime,
   ProviderRouter,
+  TelemetryRuntime,
 } from '../kernel';
+import { TELEMETRY_EVENT_CONTRACT_VERSION } from '../domain';
 import type {
   AIProviderPort,
   DictionaryProviderPort,
   FeedbackPort,
   IdentityPort,
+  LearningEventPort,
   TranslationProviderPort,
 } from '../ports';
 
@@ -56,12 +62,29 @@ export interface LearningRuntime {
   dictionaryProviders: ProviderRouter<DictionaryProviderPort>;
   translationProviders: ProviderRouter<TranslationProviderPort>;
   execution: ExecutionRuntime;
+  events: LearningEventPort;
+  telemetry: TelemetryRuntime;
   identity: IdentityPort;
   feedback: FeedbackPort;
   guestId: string;
+  clientSessionId: string;
 }
 
 const runtimes = new WeakMap<AppService, Promise<LearningRuntime>>();
+const CLIENT_SESSION_KEY = 'english-learning-os:client-session-id';
+
+const getClientSessionId = (): string => {
+  const candidate =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  if (typeof window === 'undefined') return `server-${candidate}`;
+  const existing = window.sessionStorage.getItem(CLIENT_SESSION_KEY);
+  if (existing) return existing;
+  const created = `session-${candidate}`;
+  window.sessionStorage.setItem(CLIENT_SESSION_KEY, created);
+  return created;
+};
 
 export const createLearningRuntime = async (
   database: DatabaseService,
@@ -75,6 +98,29 @@ export const createLearningRuntime = async (
       : `guest-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
   );
   const identity = new ReadestIdentityAdapter({ identities: repository });
+  const clientSessionId = getClientSessionId();
+  const eventContext = () => ({ clientSessionId, actorId: guestId });
+  const telemetry = new TelemetryRuntime(new ReadestTelemetryAdapter());
+  const eventRuntime = new EventRuntime();
+  const events = new LearningEventRuntimeAdapter(repository, eventRuntime);
+  for (const type of [
+    'learning_object_saved',
+    'activity_completed',
+    'memory_review_completed',
+    'source_context_returned',
+  ] as const) {
+    eventRuntime.subscribe(type, (event) =>
+      telemetry.capture({
+        id: `telemetry:${event.id}`,
+        contractVersion: TELEMETRY_EVENT_CONTRACT_VERSION,
+        name: event.type,
+        occurredAt: event.occurredAt,
+        clientSessionId: event.clientSessionId,
+        ...(event.actorId ? { actorId: event.actorId } : {}),
+        properties: event.properties,
+      }),
+    );
+  }
   const feedback = new HttpFeedbackAdapter({
     guestId: () => guestId,
     accessToken: () =>
@@ -132,6 +178,7 @@ export const createLearningRuntime = async (
       new CapabilityPolicyAdapter(['ai.explain', 'translation.execute', 'dictionary.lookup']),
       new ProviderEnforcedQuotaAdapter(),
     ),
+    telemetry,
   );
   execution.register(
     'ai.explain',
@@ -163,20 +210,25 @@ export const createLearningRuntime = async (
     dictionaryProviders,
     translationProviders,
     execution,
+    events,
+    telemetry,
     identity,
     feedback,
     guestId,
+    clientSessionId,
     orchestrator: new LearningOrchestrator({
       lexicon: repository,
       memory: repository,
       scheduler: new FsrsMemorySchedulerAdapter(),
       plans: repository,
-      events: repository,
+      events,
+      eventContext,
     }),
     practice: new ActivityPracticeService({
       registry: activities,
       repository,
-      events: repository,
+      events,
+      eventContext,
     }),
   };
 };

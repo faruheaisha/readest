@@ -11,6 +11,7 @@ import type {
   Schedule,
   TodayPlan,
 } from '../domain';
+import { learningEventSchema } from '../contracts';
 import type {
   ActivityRepositoryPort,
   ArtifactCachePort,
@@ -187,7 +188,10 @@ export class InMemoryLearningEventAdapter implements LearningEventPort {
   readonly #events: LearningEvent[] = [];
 
   async publish(event: LearningEvent): Promise<void> {
-    if (!this.#events.some((candidate) => candidate.id === event.id)) this.#events.push(event);
+    const validEvent = learningEventSchema.parse(event);
+    if (!this.#events.some((candidate) => candidate.id === validEvent.id)) {
+      this.#events.push(validEvent);
+    }
   }
 
   async list(): Promise<readonly LearningEvent[]> {

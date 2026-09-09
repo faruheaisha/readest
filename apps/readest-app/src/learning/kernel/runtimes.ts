@@ -1,4 +1,10 @@
-import type { ActionDefinition, LearningEvent, SelectionContext } from '../domain';
+import {
+  TELEMETRY_EVENT_CONTRACT_VERSION,
+  type ActionDefinition,
+  type LearningEvent,
+  type SelectionContext,
+  type TelemetryEvent,
+} from '../domain';
 import type { Awaitable, JobPort, PolicyPort, QuotaPort, TelemetryPort } from '../ports';
 import { ActionRegistry, ContractSchemaRegistry } from './registry';
 
@@ -34,11 +40,8 @@ export class ConfigRuntime {
 export class TelemetryRuntime {
   constructor(private readonly telemetry: TelemetryPort) {}
 
-  capture(
-    name: string,
-    properties: Readonly<Record<string, string | number | boolean | null>> = {},
-  ): Promise<void> {
-    return this.telemetry.capture({ name, properties, occurredAt: new Date() });
+  capture(event: TelemetryEvent): Promise<void> {
+    return this.telemetry.capture(event);
   }
 }
 
@@ -74,6 +77,29 @@ export interface ActionHandler<TResult> {
   ): Promise<TResult>;
 }
 
+const betaActionType = (
+  actionId: string,
+): 'dictionary' | 'translation' | 'ai_explain' | 'grammar' | null => {
+  if (actionId === 'dictionary.lookup') return 'dictionary';
+  if (actionId === 'translation.translate') return 'translation';
+  if (actionId === 'ai.explain') return 'ai_explain';
+  if (actionId === 'ai.grammar') return 'grammar';
+  return null;
+};
+
+const providerClass = (result: unknown): 'local' | 'byok' | 'platform' | 'external' | 'unknown' => {
+  if (!result || typeof result !== 'object' || !('provider' in result)) return 'unknown';
+  const provider = result.provider;
+  if (!provider || typeof provider !== 'object' || !('id' in provider)) return 'unknown';
+  const id = provider.id;
+  if (typeof id !== 'string') return 'unknown';
+  if (id === 'english-learning-os.platform-ai') return 'platform';
+  if (id.includes('ollama')) return 'local';
+  if (id.startsWith('readest.translation.')) return 'external';
+  if (id.startsWith('readest.') && !id.startsWith('readest.dictionary')) return 'byok';
+  return 'unknown';
+};
+
 export class ExecutionRuntime {
   readonly #handlers = new Map<string, ActionHandler<unknown>>();
 
@@ -81,6 +107,7 @@ export class ExecutionRuntime {
     private readonly actions: ActionRegistry,
     private readonly schemas: ContractSchemaRegistry,
     private readonly policy?: PolicyRuntime,
+    private readonly telemetry?: TelemetryRuntime,
   ) {}
 
   register<TResult>(actionId: string, handler: ActionHandler<TResult>): void {
@@ -96,6 +123,8 @@ export class ExecutionRuntime {
     selection: SelectionContext;
     subjectId: string | null;
     idempotencyKey: string;
+    clientSessionId?: string;
+    telemetryActorId?: string;
     locale?: string;
     outputSchema?: string;
   }): Promise<TResult> {
@@ -108,12 +137,30 @@ export class ExecutionRuntime {
     }
     const handler = this.#handlers.get(input.actionId);
     if (!handler) throw new Error(`ExecutionRuntime: no handler for "${input.actionId}"`);
+    const startedAt = Date.now();
     const result = await handler.execute(input.selection, {
       action,
       locale: input.locale ?? input.selection.language,
     });
-    return input.outputSchema
+    const output = input.outputSchema
       ? this.schemas.parse<TResult>(input.outputSchema, result)
       : (result as TResult);
+    const actionType = betaActionType(input.actionId);
+    if (this.telemetry && input.clientSessionId && actionType) {
+      await this.telemetry.capture({
+        id: `telemetry:context-action:${input.idempotencyKey}`,
+        contractVersion: TELEMETRY_EVENT_CONTRACT_VERSION,
+        name: 'context_action_completed',
+        occurredAt: new Date(),
+        clientSessionId: input.clientSessionId,
+        ...(input.telemetryActorId ? { actorId: input.telemetryActorId } : {}),
+        properties: {
+          actionType,
+          latencyMs: Date.now() - startedAt,
+          providerClass: providerClass(output),
+        },
+      });
+    }
+    return output;
   }
 }

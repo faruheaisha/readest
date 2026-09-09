@@ -66,7 +66,11 @@ export const LearningContextPanel = ({
     if (!runtime || saving) return;
     setSaving(true);
     try {
-      const result = await runtime.orchestrator.saveSelection(selection, kind);
+      const result = await runtime.orchestrator.saveSelection(
+        selection,
+        kind,
+        practice ? 'save_and_practice' : 'save',
+      );
       if (practice) {
         await runtime.orchestrator.ensureReviewItem(result.learningObject.id);
         router.push('/review');
@@ -88,6 +92,8 @@ export const LearningContextPanel = ({
         actionId: 'ai.explain',
         selection,
         subjectId,
+        clientSessionId: runtime.clientSessionId,
+        telemetryActorId: runtime.guestId,
         idempotencyKey:
           typeof crypto !== 'undefined' && 'randomUUID' in crypto
             ? crypto.randomUUID()
@@ -124,6 +130,8 @@ export const LearningContextPanel = ({
         actionId: 'translation.translate',
         selection,
         subjectId,
+        clientSessionId: runtime.clientSessionId,
+        telemetryActorId: runtime.guestId,
         idempotencyKey:
           typeof crypto !== 'undefined' && 'randomUUID' in crypto
             ? crypto.randomUUID()
@@ -153,6 +161,8 @@ export const LearningContextPanel = ({
         actionId: 'dictionary.lookup',
         selection,
         subjectId,
+        clientSessionId: runtime.clientSessionId,
+        telemetryActorId: runtime.guestId,
         idempotencyKey:
           typeof crypto !== 'undefined' && 'randomUUID' in crypto
             ? crypto.randomUUID()

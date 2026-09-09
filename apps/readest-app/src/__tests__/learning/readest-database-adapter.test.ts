@@ -155,7 +155,75 @@ describe('ReadestLearningDatabaseAdapter', () => {
     expect((await adapter.get(today.id))?.items).toHaveLength(1);
     expect((await adapter.list()).map((event) => event.type)).toEqual([
       'learning_object_saved',
-      'review_completed',
+      'memory_review_completed',
     ]);
+  });
+
+  it('upgrades legacy learning facts into the versioned evidence contract', async () => {
+    const legacyDb = await NodeDatabaseService.open(':memory:');
+    const migrations = getMigrations('learning');
+    const legacyMigrations = migrations.slice(0, -1);
+
+    try {
+      await migrate(legacyDb, legacyMigrations);
+      await legacyDb.execute(
+        `INSERT INTO learning_events
+          (id, type, occurred_at, actor_id, aggregate_id, properties_json)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          'legacy-save-1',
+          'learning_object_saved',
+          new Date('2026-09-01T12:00:00.000Z').getTime(),
+          'guest-legacy',
+          'object-1',
+          JSON.stringify({ kind: 'word', contentId: 'book-1' }),
+        ],
+      );
+      await legacyDb.execute(
+        `INSERT INTO learning_events
+          (id, type, occurred_at, actor_id, aggregate_id, properties_json)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          'legacy-review-1',
+          'review_completed',
+          new Date('2026-09-02T12:00:00.000Z').getTime(),
+          'guest-legacy',
+          'review-item-1',
+          JSON.stringify({ rating: 'good', learningObjectId: 'object-1' }),
+        ],
+      );
+
+      await migrate(legacyDb, migrations);
+      const migrated = await new ReadestLearningDatabaseAdapter(legacyDb).list();
+
+      expect(migrated).toEqual([
+        expect.objectContaining({
+          id: 'legacy-save-1',
+          type: 'learning_object_saved',
+          contractVersion: '1.0.0',
+          clientSessionId: 'legacy-session',
+          properties: {
+            objectType: 'word',
+            saveMode: 'save',
+            contentId: 'book-1',
+            memorySubjectId: 'object-1',
+          },
+        }),
+        expect.objectContaining({
+          id: 'legacy-review-1',
+          type: 'memory_review_completed',
+          contractVersion: '1.0.0',
+          clientSessionId: 'legacy-session',
+          properties: {
+            memorySubjectId: 'object-1',
+            ratingClass: 'good',
+            dueDeltaBucket: 'unknown',
+            reviewEventId: 'legacy-review-1',
+          },
+        }),
+      ]);
+    } finally {
+      await legacyDb.close();
+    }
   });
 });

@@ -69,6 +69,6 @@ describe('activity plugins', () => {
 
     expect(result).toMatchObject({ correct: true, score: 1, durationMs: 5_000 });
     expect(await repository.getSpec(spec.id)).toEqual(spec);
-    expect(events.all().map((event) => event.type)).toEqual(['practice_completed']);
+    expect(events.all().map((event) => event.type)).toEqual(['activity_completed']);
   });
 });

@@ -384,6 +384,55 @@ const migrations: Record<SchemaType, MigrationEntry[]> = {
         ON learning_artifacts (action_id, created_at DESC);
       `,
     },
+    {
+      name: '2026090901_learning_event_contract_v1',
+      sql: `
+        ALTER TABLE learning_events
+        ADD COLUMN contract_version TEXT NOT NULL DEFAULT '1.0.0';
+
+        ALTER TABLE learning_events
+        ADD COLUMN client_session_id TEXT NOT NULL DEFAULT 'legacy-session';
+
+        UPDATE learning_events
+        SET properties_json = json_object(
+              'objectType', COALESCE(json_extract(properties_json, '$.kind'), 'word'),
+              'saveMode', 'save',
+              'contentId', COALESCE(json_extract(properties_json, '$.contentId'), aggregate_id, 'legacy-content'),
+              'memorySubjectId', COALESCE(aggregate_id, id)
+            )
+        WHERE type = 'learning_object_saved';
+
+        UPDATE learning_events
+        SET type = 'activity_completed',
+            properties_json = json_object(
+              'activityType', COALESCE(json_extract(properties_json, '$.activity'), 'recognition'),
+              'resultBucket', CASE
+                WHEN json_extract(properties_json, '$.correct') = 1 THEN 'correct'
+                ELSE 'incorrect'
+              END,
+              'attemptId', id,
+              'memorySubjectId', COALESCE(aggregate_id, id)
+            )
+        WHERE type = 'practice_completed';
+
+        UPDATE learning_events
+        SET type = 'memory_review_completed',
+            properties_json = json_object(
+              'memorySubjectId', COALESCE(json_extract(properties_json, '$.learningObjectId'), aggregate_id, id),
+              'ratingClass', COALESCE(json_extract(properties_json, '$.rating'), 'again'),
+              'dueDeltaBucket', 'unknown',
+              'reviewEventId', id
+            )
+        WHERE type = 'review_completed';
+
+        UPDATE learning_events
+        SET type = 'source_context_returned'
+        WHERE type = 'source_returned';
+
+        CREATE INDEX IF NOT EXISTS idx_learning_events_session_occurred
+        ON learning_events (client_session_id, occurred_at);
+      `,
+    },
   ],
   reedy: [
     {
