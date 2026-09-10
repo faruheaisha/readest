@@ -22,6 +22,19 @@ import type {
   MemorySchedulerPort,
 } from '../ports';
 
+/**
+ * Per-category consent gate evaluated inside `apply`. `LearningSyncService`
+ * re-checks between categories, but a single category can still be mid-loop
+ * when consent is withdrawn; every adapter checks here so a revoked pull
+ * stops importing records and leaves no partially applied batch reported as
+ * a success. The composition root wires the same gate used at dispatch.
+ */
+export type LearningSyncApplyGate = () => boolean;
+
+const assertApplyAllowed = (gate: LearningSyncApplyGate | undefined): void => {
+  if (gate && !gate()) throw new Error('Learning sync is disabled');
+};
+
 const stableRecordId = (category: string, identity: string): string =>
   `${category}:${bytesToHex(sha256(utf8ToBytes(identity)))}`;
 
@@ -79,7 +92,10 @@ export const LEARNING_EVENT_SYNC_DESCRIPTOR = descriptor({
 export class LexiconSyncCategoryAdapter implements LearningSyncCategoryPort {
   readonly descriptor = LEXICON_SYNC_DESCRIPTOR;
 
-  constructor(private readonly lexicon: LexiconRepositoryPort) {}
+  constructor(
+    private readonly lexicon: LexiconRepositoryPort,
+    private readonly canApply?: LearningSyncApplyGate,
+  ) {}
 
   async collect(): Promise<readonly LearningSyncRecord[]> {
     const learningObjects = await this.lexicon.listAll();
@@ -113,6 +129,7 @@ export class LexiconSyncCategoryAdapter implements LearningSyncCategoryPort {
     let applied = 0;
     let ignored = 0;
     for (const record of records) {
+      assertApplyAllowed(this.canApply);
       if (record.deletedAt) {
         ignored += 1;
         continue;
@@ -141,6 +158,7 @@ export class MemorySyncCategoryAdapter implements LearningSyncCategoryPort {
     private readonly lexicon: LexiconRepositoryPort,
     private readonly memory: MemoryRepositoryPort,
     private readonly scheduler: MemorySchedulerPort,
+    private readonly canApply?: LearningSyncApplyGate,
   ) {}
 
   async collect(): Promise<readonly LearningSyncRecord[]> {
@@ -180,6 +198,7 @@ export class MemorySyncCategoryAdapter implements LearningSyncCategoryPort {
     let applied = 0;
     let ignored = 0;
     for (const record of records) {
+      assertApplyAllowed(this.canApply);
       if (record.deletedAt) {
         ignored += 1;
         continue;
@@ -240,6 +259,7 @@ export class ActivitySyncCategoryAdapter implements LearningSyncCategoryPort {
   constructor(
     private readonly lexicon: LexiconRepositoryPort,
     private readonly activities: ActivityRepositoryPort,
+    private readonly canApply?: LearningSyncApplyGate,
   ) {}
 
   async collect(): Promise<readonly LearningSyncRecord[]> {
@@ -279,6 +299,7 @@ export class ActivitySyncCategoryAdapter implements LearningSyncCategoryPort {
     let applied = 0;
     let ignored = 0;
     for (const record of records) {
+      assertApplyAllowed(this.canApply);
       if (record.deletedAt) {
         ignored += 1;
         continue;
@@ -323,6 +344,7 @@ export class LearningEventSyncCategoryAdapter implements LearningSyncCategoryPor
     private readonly lexicon: LexiconRepositoryPort,
     private readonly memory: MemoryRepositoryPort,
     private readonly events: LearningEventPort,
+    private readonly canApply?: LearningSyncApplyGate,
   ) {}
 
   async collect(): Promise<readonly LearningSyncRecord[]> {
@@ -353,6 +375,7 @@ export class LearningEventSyncCategoryAdapter implements LearningSyncCategoryPor
     let applied = 0;
     let ignored = 0;
     for (const record of records) {
+      assertApplyAllowed(this.canApply);
       if (record.deletedAt) {
         ignored += 1;
         continue;
@@ -379,9 +402,7 @@ export class LearningEventSyncCategoryAdapter implements LearningSyncCategoryPor
     if (!learningObject) throw new Error(`Learning event "${event.id}" is missing lexical data`);
     const aggregateId =
       event.type === 'memory_review_completed'
-        ? (
-            await this.memory.findReviewItemByLearningObject(learningObject.id)
-          )?.id
+        ? (await this.memory.findReviewItemByLearningObject(learningObject.id))?.id
         : learningObject.id;
     return {
       ...event,

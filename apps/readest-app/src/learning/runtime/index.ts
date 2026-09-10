@@ -11,6 +11,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useCustomDictionaryStore } from '@/store/customDictionaryStore';
 import { getEnabledProviders } from '@/services/dictionaries/registry';
 import { ReadestReplicaSyncAdapter } from '../adapters/readest-sync';
+import { isSyncCategoryEnabled } from '@/services/sync/syncCategories';
 import {
   CapabilityPolicyAdapter,
   createActivityEngines,
@@ -184,16 +185,24 @@ export const createLearningRuntime = async (
   const activities = new ActivityRegistry();
   for (const engine of createActivityEngines()) activities.registerEngine(engine);
   const scheduler = new FsrsMemorySchedulerAdapter();
+  // One consent gate, shared by transport dispatch, category apply, and the
+  // application service, so UI, transport, and import agree on authorization.
+  const learningSyncAllowed = () => isSyncCategoryEnabled('learning');
   const syncCategories = new SyncCategoryRegistry();
-  syncCategories.registerCategory(new LexiconSyncCategoryAdapter(repository));
-  syncCategories.registerCategory(new MemorySyncCategoryAdapter(repository, repository, scheduler));
-  syncCategories.registerCategory(new ActivitySyncCategoryAdapter(repository, repository));
+  syncCategories.registerCategory(new LexiconSyncCategoryAdapter(repository, learningSyncAllowed));
   syncCategories.registerCategory(
-    new LearningEventSyncCategoryAdapter(repository, repository, events),
+    new MemorySyncCategoryAdapter(repository, repository, scheduler, learningSyncAllowed),
+  );
+  syncCategories.registerCategory(
+    new ActivitySyncCategoryAdapter(repository, repository, learningSyncAllowed),
+  );
+  syncCategories.registerCategory(
+    new LearningEventSyncCategoryAdapter(repository, repository, events, learningSyncAllowed),
   );
   const sync = new LearningSyncService({
     categories: syncCategories,
-    transport: new ReadestReplicaSyncAdapter(),
+    transport: new ReadestReplicaSyncAdapter({ canSync: learningSyncAllowed }),
+    canApply: learningSyncAllowed,
   });
   const actions = new ActionRegistry();
   actions.register('ai.explain', {

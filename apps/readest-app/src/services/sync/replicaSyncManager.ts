@@ -17,6 +17,8 @@ export interface ReplicaSyncManagerOpts {
   client: Pick<ReplicaSyncClient, 'push' | 'pull' | 'pullBatch'>;
   cursorStore: CursorStore;
   debounceMs?: number;
+  /** Evaluated at dispatch, including retries; disabled rows remain queued. */
+  canPushKind?: (kind: string) => boolean;
 }
 
 interface DirtyKey {
@@ -123,7 +125,8 @@ export class ReplicaSyncManager {
     }
     if (this.dirty.size === 0) return;
     const entries = Array.from(this.dirty.entries()).filter(
-      ([, row]) => !this.unsupportedKinds.has(row.kind),
+      ([, row]) =>
+        !this.unsupportedKinds.has(row.kind) && (this.opts.canPushKind?.(row.kind) ?? true),
     );
     if (entries.length === 0) return;
     const snapshot = entries.map(([, row]) => row);
@@ -149,6 +152,7 @@ export class ReplicaSyncManager {
         else indexesByKind.set(row.kind, [i]);
       });
       for (const [kind, indexes] of indexesByKind) {
+        if (this.opts.canPushKind?.(kind) === false) continue;
         try {
           await this.opts.client.push(indexes.map((i) => snapshot[i]!));
           for (const i of indexes) pushedKeys.push(snapshotKeys[i]!);

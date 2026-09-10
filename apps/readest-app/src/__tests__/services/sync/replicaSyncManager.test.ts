@@ -57,6 +57,94 @@ afterEach(() => {
 });
 
 describe('ReplicaSyncManager.markDirty + flush', () => {
+  test('keeps disabled rows queued until consent is restored without blocking other kinds', async () => {
+    let enabled = true;
+    const client = makeFakeClient();
+    const manager = new ReplicaSyncManager({
+      hlc: new HlcGenerator(DEV, () => NOW),
+      client,
+      cursorStore: { get: () => null, set: () => {} },
+      canPushKind: (kind: string) => kind !== 'learning_event' || enabled,
+    });
+    const learning = { ...makeRow('learning'), kind: 'learning_event' };
+    manager.markDirty(learning);
+    manager.markDirty(makeRow('dictionary'));
+    enabled = false;
+    await manager.flush();
+    expect(client.push).toHaveBeenCalledWith([makeRow('dictionary')]);
+    client.push.mockClear();
+    enabled = true;
+    await manager.flush();
+    expect(client.push).toHaveBeenCalledWith([learning]);
+  });
+
+  test('retains a disabled row across a full disable/re-enable cycle without losing it', async () => {
+    let enabled = false;
+    const client = makeFakeClient();
+    const manager = new ReplicaSyncManager({
+      hlc: new HlcGenerator(DEV, () => NOW),
+      client,
+      cursorStore: { get: () => null, set: () => {} },
+      canPushKind: (kind: string) => kind !== 'learning_event' || enabled,
+    });
+    const learning = { ...makeRow('learning'), kind: 'learning_event' };
+    manager.markDirty(learning);
+
+    // Disabled: nothing is sent and the record is not discarded.
+    await manager.flush();
+    expect(client.push).not.toHaveBeenCalled();
+    expect(manager.pendingCount()).toBe(1);
+
+    // Re-enabled: the retained record goes out exactly once.
+    enabled = true;
+    await manager.flush();
+    expect(client.push).toHaveBeenCalledWith([learning]);
+    expect(manager.pendingCount()).toBe(0);
+  });
+
+  test('retries the successful categories after a batch failure in another category', async () => {
+    let failLearning = true;
+    const client = makeFakeClient();
+    client.push = vi.fn(async (rows: ReplicaRow[]) => {
+      if (rows.some(({ kind }) => kind === 'learning_event') && failLearning) {
+        throw new Error('transient learning transport failure');
+      }
+      return rows;
+    });
+    const manager = new ReplicaSyncManager({
+      hlc: new HlcGenerator(DEV, () => NOW),
+      client,
+      cursorStore: { get: () => null, set: () => {} },
+    });
+    manager.markDirty({ ...makeRow('learning'), kind: 'learning_event' });
+    manager.markDirty(makeRow('dictionary'));
+
+    // The whole batch fails; nothing is cleared, so no user data is lost.
+    await expect(manager.flush()).rejects.toThrow('transient learning transport failure');
+    expect(manager.pendingCount()).toBe(2);
+
+    failLearning = false;
+    await manager.flush();
+    expect(manager.pendingCount()).toBe(0);
+  });
+
+  test('never inspects disabled kinds while leaving enabled kinds untouched', async () => {
+    const client = makeFakeClient();
+    const manager = new ReplicaSyncManager({
+      hlc: new HlcGenerator(DEV, () => NOW),
+      client,
+      cursorStore: { get: () => null, set: () => {} },
+      canPushKind: (kind: string) => kind !== 'learning_event',
+    });
+    manager.markDirty({ ...makeRow('learning'), kind: 'learning_event' });
+    manager.markDirty(makeRow('dictionary'));
+    await manager.flush();
+    // Only the enabled category is pushed; the disabled one stays queued.
+    expect(client.push).toHaveBeenCalledTimes(1);
+    expect(client.push).toHaveBeenCalledWith([makeRow('dictionary')]);
+    expect(manager.pendingCount()).toBe(1);
+  });
+
   test('markDirty alone does not push', async () => {
     const { manager, client } = makeManager();
     manager.markDirty(makeRow('r1'));

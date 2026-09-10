@@ -52,10 +52,10 @@ describe('bootstrapReplicaAdapters', () => {
   test('is idempotent: calling twice is a no-op (does not throw)', () => {
     bootstrapReplicaAdapters();
     bootstrapReplicaAdapters();
-    expect(listReplicaAdapters()).toHaveLength(6);
+    expect(listReplicaAdapters()).toHaveLength(10);
   });
 
-  test('registers the current allowlist (dictionary, font, texture, opds_catalog, abs_server, settings)', () => {
+  test('registers the current allowlist including the encrypted learning kinds', () => {
     bootstrapReplicaAdapters();
     const kinds = listReplicaAdapters().map((a) => a.kind);
     expect(kinds).toEqual([
@@ -65,6 +65,10 @@ describe('bootstrapReplicaAdapters', () => {
       'opds_catalog',
       'abs_server',
       'settings',
+      'learning_lexicon',
+      'learning_memory',
+      'learning_activity',
+      'learning_event',
     ]);
   });
 });

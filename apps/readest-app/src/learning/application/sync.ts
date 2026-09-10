@@ -11,6 +11,13 @@ import type { LearningSyncTransportPort, SyncPort } from '../ports';
 export interface LearningSyncServiceDependencies {
   categories: SyncCategoryRegistry;
   transport: LearningSyncTransportPort;
+  /**
+   * Consent predicate evaluated at apply time, not only at dispatch. A pull
+   * that is already in flight cannot be recalled, so the response must be
+   * discarded rather than imported once consent is withdrawn. The composition
+   * root wires this to the same category gate the transport uses.
+   */
+  canApply?: () => boolean;
 }
 
 /**
@@ -21,6 +28,13 @@ export class LearningSyncService implements SyncPort {
   private currentStatus: LearningSyncStatus = 'idle';
 
   constructor(private readonly dependencies: LearningSyncServiceDependencies) {}
+
+  private assertApplyAllowed(): void {
+    if (this.dependencies.canApply && !this.dependencies.canApply()) {
+      this.currentStatus = 'disabled';
+      throw new Error('Learning sync is disabled');
+    }
+  }
 
   async sync(categories?: readonly LearningSyncCategoryId[]): Promise<LearningSyncResult> {
     this.currentStatus = 'syncing';
@@ -38,9 +52,13 @@ export class LearningSyncService implements SyncPort {
   }
 
   async publish(categories?: readonly LearningSyncCategoryId[]): Promise<number> {
+    this.assertApplyAllowed();
     const ordered = this.dependencies.categories.resolve(categories);
     const records = (await Promise.all(ordered.map((adapter) => adapter.collect()))).flat();
-    this.assertRecordsBelongToAdapters(records, ordered.map(({ descriptor }) => descriptor.id));
+    this.assertRecordsBelongToAdapters(
+      records,
+      ordered.map(({ descriptor }) => descriptor.id),
+    );
     await this.dependencies.transport.push(records);
     return records.length;
   }
@@ -48,17 +66,20 @@ export class LearningSyncService implements SyncPort {
   async pull(
     categories?: readonly LearningSyncCategoryId[],
   ): Promise<{ pulled: number; applied: number; ignored: number }> {
+    this.assertApplyAllowed();
     const ordered = this.dependencies.categories.resolve(categories);
     const ids = ordered.map(({ descriptor }) => descriptor.id);
     const records = await this.dependencies.transport.pull(ids);
+    // The request cannot be recalled once dispatched; re-check before any
+    // record reaches local storage so a revoked response is discarded whole.
+    this.assertApplyAllowed();
     this.assertRecordsBelongToAdapters(records, ids);
 
     let applied = 0;
     let ignored = 0;
     for (const adapter of ordered) {
-      const categoryRecords = records.filter(
-        ({ category }) => category === adapter.descriptor.id,
-      );
+      this.assertApplyAllowed();
+      const categoryRecords = records.filter(({ category }) => category === adapter.descriptor.id);
       const result = await adapter.apply(categoryRecords);
       applied += result.applied;
       ignored += result.ignored;

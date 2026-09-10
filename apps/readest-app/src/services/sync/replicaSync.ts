@@ -3,6 +3,7 @@ import { LocalStorageHlcStore, type HlcSnapshotStore } from '@/libs/hlcStore';
 import { ReplicaSyncClient } from '@/libs/replicaSyncClient';
 import { markSettled, onSettled } from '@/utils/event';
 import { ReplicaSyncManager, type CursorStore } from './replicaSyncManager';
+import { isSyncCategoryEnabled } from './syncCategories';
 
 const REPLICA_SYNC_READY_EVENT = 'replica-sync-ready';
 
@@ -71,6 +72,7 @@ export const initReplicaSync = (opts: ReplicaSyncInitOpts): ReplicaSyncContext =
     hlc,
     client,
     cursorStore: opts.cursorStore,
+    canPushKind: isSyncCategoryEnabled,
   });
 
   instance = { manager, hlc, deviceId: opts.deviceId };

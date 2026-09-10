@@ -11,9 +11,11 @@ import { useSettingsStore } from '@/store/settingsStore';
 vi.mock('@/utils/access', () => ({ getUserID: async () => null }));
 
 const initialSettings = useSettingsStore.getState().settings;
-beforeEach(() => useSettingsStore.setState({
-  settings: { ...initialSettings, syncCategories: { learning: true } },
-}));
+beforeEach(() =>
+  useSettingsStore.setState({
+    settings: { ...initialSettings, syncCategories: { learning: true } },
+  }),
+);
 afterEach(() => useSettingsStore.setState({ settings: initialSettings }));
 
 const HLC = '00001991f7f8c00-00000000-device-a' as Hlc;
@@ -42,13 +44,21 @@ describe('Readest learning replica adapter', () => {
   it('discards a pull response when consent is withdrawn while it is in flight', async () => {
     const transport = new ReadestReplicaSyncAdapter({
       getUserId: async () => 'user-a',
-      getContext: () => ({ manager: { pullMany: async () => {
-        const settings = useSettingsStore.getState().settings;
-        useSettingsStore.setState({ settings: {
-          ...settings, syncCategories: { learning: false },
-        } });
-        return new Map([['learning_lexicon', []]]);
-      } } }) as unknown as ReplicaSyncContext,
+      getContext: () =>
+        ({
+          manager: {
+            pullMany: async () => {
+              const settings = useSettingsStore.getState().settings;
+              useSettingsStore.setState({
+                settings: {
+                  ...settings,
+                  syncCategories: { learning: false },
+                },
+              });
+              return new Map([['learning_lexicon', []]]);
+            },
+          },
+        }) as unknown as ReplicaSyncContext,
     });
     await expect(transport.pull(['learning.lexicon'])).rejects.toThrow('Learning sync is disabled');
     expect(await transport.status()).toBe('disabled');
@@ -65,7 +75,9 @@ describe('Readest learning replica adapter', () => {
     });
     try {
       await expect(transport.push([record])).rejects.toThrow('Learning sync is disabled');
-      await expect(transport.pull(['learning.lexicon'])).rejects.toThrow('Learning sync is disabled');
+      await expect(transport.pull(['learning.lexicon'])).rejects.toThrow(
+        'Learning sync is disabled',
+      );
       expect(await transport.status()).toBe('disabled');
       expect(pullMany).not.toHaveBeenCalled();
       expect(flush).not.toHaveBeenCalled();
@@ -125,5 +137,19 @@ describe('Readest learning replica adapter', () => {
     });
 
     expect(await transport.status()).toBe('disabled');
+  });
+
+  it('does a full pull that ignores a cursor a previous account may have written', async () => {
+    const pullMany = vi.fn(async () => new Map([['learning_lexicon', []]]));
+    const transport = new ReadestReplicaSyncAdapter({
+      getContext: () =>
+        ({ manager: { pullMany, flush: async () => {} } }) as unknown as ReplicaSyncContext,
+      getUserId: async () => 'user-a',
+    });
+
+    await transport.pull(['learning.lexicon']);
+    // A stale cursor from another account must never narrow the first pull of
+    // the active session, so learning always asks for everything.
+    expect(pullMany).toHaveBeenCalledWith(['learning_lexicon'], { since: null });
   });
 });

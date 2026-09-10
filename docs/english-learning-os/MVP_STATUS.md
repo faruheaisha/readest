@@ -45,9 +45,15 @@ The current sync implementation and its outstanding release blockers are recorde
 
 These corrections have higher priority than adding new feature areas:
 
-1. **Sync and data control:** add learning replica categories, conflict policies, export, deletion, and locator re-anchoring.
+1. **Sync and data control:** add learning replica categories, conflict policies, export, deletion, and locator re-anchoring. Consent authorization, account scoping, and event boundaries are implemented and covered by focused tests; export and deletion are not.
 2. **Sense enrichment:** connect an explicitly selected dictionary definition to a resolved Sense and freeze multi-sense identity before exposing multiple senses for one Lexeme. Current word/sense saves remain separate review targets, but a Sense without a chosen definition is deliberately marked `unresolved` rather than assigned invented meaning.
 3. **Annotation experience:** expose note/comment creation in the Context Panel through the owned Annotation port while keeping Readest's existing highlight, bookmark, notebook, import/export, and sync surfaces intact.
+
+### Sync consent and account scope (2026-09-10)
+
+Learning sync defaults off. The UI, transport, per-record category apply, and the application service share one consent predicate, re-checked after every network or decryption await and before each applied record. The transport binds each operation to the authorizing account and aborts on sign-out or account switch. A required-encryption record that cannot be encrypted fails loudly instead of reporting success. Remote learning facts persist without re-broadcasting local product telemetry.
+
+Residual risk: `lastSyncedAtReplicas` is not account-scoped. Learning is immune because it always pulls with `{ since: null }`; other incremental replica categories can skip rows after an account switch. This needs a scoped-cursor migration and is not fixed in this batch. See `SYNC_CHECKPOINT.md`.
 
 ## Verification evidence
 

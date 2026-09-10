@@ -19,7 +19,13 @@ import {
 import { LearningOrchestrator } from '@/learning/application/orchestrator';
 import { LearningSyncService } from '@/learning/application/sync';
 import { SyncCategoryRegistry } from '@/learning/kernel/registry';
-import type { ActivityAttempt, ActivityResult, ActivitySpec, SelectionContext } from '@/learning/domain';
+import type {
+  ActivityAttempt,
+  ActivityResult,
+  ActivitySpec,
+  SelectionContext,
+} from '@/learning/domain';
+import type { LearningSyncTransportPort } from '@/learning/ports';
 
 const selection = (text: string, contentId: string): SelectionContext => ({
   contentId,
@@ -72,13 +78,65 @@ describe('learning sync', () => {
     const events = new LearningEventRuntimeAdapter(target.events, runtime);
     const importer = new LearningEventSyncCategoryAdapter(target.lexicon, target.memory, events);
     const records = await new LearningEventSyncCategoryAdapter(
-      source.lexicon, source.memory, source.events,
+      source.lexicon,
+      source.memory,
+      source.events,
     ).collect();
     await importer.apply(records);
     expect(await target.events.list()).toHaveLength(1);
     expect(onLocalActivity).not.toHaveBeenCalled();
     await events.publish({ ...(await target.events.list())[0]!, id: 'new-local-event' });
     expect(onLocalActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops applying pulled records when consent is withdrawn while the transport is in flight', async () => {
+    const source = createRuntimeParts('source');
+    await source.orchestrator.saveSelection(selection('Synapse', 'paper'), 'word');
+    const records = await new LexiconSyncCategoryAdapter(source.lexicon).collect();
+
+    const target = createRuntimeParts('target');
+    let enabled = true;
+    const transport: LearningSyncTransportPort = {
+      push: async () => {},
+      pull: async () => {
+        // Consent is withdrawn after the request was dispatched but before
+        // the response is applied — the in-flight response must be discarded.
+        enabled = false;
+        return records;
+      },
+      status: async () => (enabled ? 'idle' : 'disabled'),
+    };
+
+    const service = new LearningSyncService({
+      categories: target.categories,
+      transport,
+      canApply: () => enabled,
+    });
+
+    await expect(service.pull(['learning.lexicon'])).rejects.toThrow('Learning sync is disabled');
+    expect(await target.lexicon.listAll()).toHaveLength(0);
+  });
+
+  it('applies pulled records normally while consent is still granted', async () => {
+    const source = createRuntimeParts('source');
+    await source.orchestrator.saveSelection(selection('Synapse', 'paper'), 'word');
+    const records = await new LexiconSyncCategoryAdapter(source.lexicon).collect();
+
+    const target = createRuntimeParts('target');
+    const transport = new InMemoryLearningSyncTransport();
+    await transport.push(records);
+    const service = new LearningSyncService({
+      categories: target.categories,
+      transport,
+      canApply: () => true,
+    });
+
+    expect(await service.pull(['learning.lexicon'])).toEqual({
+      pulled: 1,
+      applied: 1,
+      ignored: 0,
+    });
+    expect(await target.lexicon.listAll()).toHaveLength(1);
   });
 
   it('orders dependencies, converges canonical ids, and rebuilds schedules from review events', async () => {
@@ -161,6 +219,43 @@ describe('learning sync', () => {
     );
     expect(reviewEvent?.properties.memorySubjectId).toBe(canonical!.id);
     expect(reviewEvent?.aggregateId).toBe(targetItem!.id);
+  });
+
+  it('does not re-broadcast telemetry for a remote-imported learning event', async () => {
+    const source = createRuntimeParts('source');
+    await source.orchestrator.saveSelection(selection('Synapse', 'paper'), 'word');
+    const runtime = new EventRuntime();
+    const telemetry = vi.fn();
+    for (const type of [
+      'learning_object_saved',
+      'activity_completed',
+      'memory_review_completed',
+      'source_context_returned',
+    ] as const) {
+      runtime.subscribe(type, telemetry);
+    }
+
+    const target = createRuntimeParts('target');
+    const events = new LearningEventRuntimeAdapter(target.events, runtime);
+    const importer = new LearningEventSyncCategoryAdapter(target.lexicon, target.memory, events);
+
+    // Import needs the lexical dependency first, exactly as the real flow does.
+    await new LexiconSyncCategoryAdapter(target.lexicon).apply(
+      await new LexiconSyncCategoryAdapter(source.lexicon).collect(),
+    );
+    const records = await new LearningEventSyncCategoryAdapter(
+      source.lexicon,
+      source.memory,
+      source.events,
+    ).collect();
+    await importer.apply(records);
+
+    expect(await target.events.list()).toHaveLength(1);
+    expect(telemetry).not.toHaveBeenCalled();
+
+    // A genuine local action still broadcasts, so the distinction is real.
+    await events.publish({ ...(await target.events.list())[0]!, id: 'fresh-local' });
+    expect(telemetry).toHaveBeenCalledTimes(1);
   });
 
   it('does not make schedules, Today projections, artifacts, or telemetry transport categories', () => {

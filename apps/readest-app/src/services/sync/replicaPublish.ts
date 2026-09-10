@@ -24,13 +24,22 @@ export const publishReplicaUpsert = async <T>(
   contentId: string,
   reincarnation?: string,
 ): Promise<void> => {
-  if (!isSyncCategoryEnabled(kind)) return;
-  const ctx = getReplicaSync();
-  if (!ctx) return;
   const adapter = getReplicaAdapter<T>(kind);
-  if (!adapter) return;
+  // A `required`-encryption kind (private learning payloads) must never be
+  // dropped silently: reporting success while nothing left the device would
+  // hide a missing key or a signed-out session. Optional categories keep the
+  // original no-op behaviour, so unrelated Readest callers are unaffected.
+  const requiresEncryption = adapter?.encryptionPolicy === 'required';
+  const blocked = (reason: string): true => {
+    if (requiresEncryption) throw new Error(`${reason} for replica kind "${kind}"`);
+    return true;
+  };
+  if (!isSyncCategoryEnabled(kind)) return void blocked('Sync category is disabled');
+  const ctx = getReplicaSync();
+  if (!ctx) return void blocked('Replica sync is not initialized');
+  if (!adapter) return void blocked('Replica adapter is not registered');
   const userId = await getUserID();
-  if (!userId) return;
+  if (!userId) return void blocked('User is not authenticated');
 
   const packed = adapter.pack(record);
   // Credentials meta-toggle (default OFF): when the user hasn't opted
