@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReadestReplicaSyncAdapter } from '@/learning/adapters/readest-sync';
 import { createLearningReplicaAdapter } from '@/services/sync/adapters/learning';
 import { LEARNING_REPLICA_KINDS } from '@/services/sync/learningReplicaKinds';
@@ -6,8 +6,15 @@ import { validateRow } from '@/libs/replicaSchemas';
 import type { LearningSyncRecord } from '@/learning/domain';
 import type { ReplicaSyncContext } from '@/services/sync/replicaSync';
 import type { Hlc, ReplicaRow } from '@/types/replica';
+import { useSettingsStore } from '@/store/settingsStore';
 
 vi.mock('@/utils/access', () => ({ getUserID: async () => null }));
+
+const initialSettings = useSettingsStore.getState().settings;
+beforeEach(() => useSettingsStore.setState({
+  settings: { ...initialSettings, syncCategories: { learning: true } },
+}));
+afterEach(() => useSettingsStore.setState({ settings: initialSettings }));
 
 const HLC = '00001991f7f8c00-00000000-device-a' as Hlc;
 
@@ -32,6 +39,41 @@ const row = (value: unknown): ReplicaRow => ({
 });
 
 describe('Readest learning replica adapter', () => {
+  it('discards a pull response when consent is withdrawn while it is in flight', async () => {
+    const transport = new ReadestReplicaSyncAdapter({
+      getUserId: async () => 'user-a',
+      getContext: () => ({ manager: { pullMany: async () => {
+        const settings = useSettingsStore.getState().settings;
+        useSettingsStore.setState({ settings: {
+          ...settings, syncCategories: { learning: false },
+        } });
+        return new Map([['learning_lexicon', []]]);
+      } } }) as unknown as ReplicaSyncContext,
+    });
+    await expect(transport.pull(['learning.lexicon'])).rejects.toThrow('Learning sync is disabled');
+    expect(await transport.status()).toBe('disabled');
+  });
+
+  it('rejects direct push and pull when learning sync is disabled', async () => {
+    const previous = useSettingsStore.getState().settings;
+    useSettingsStore.setState({ settings: { ...previous, syncCategories: { learning: false } } });
+    const pullMany = vi.fn(async () => new Map());
+    const flush = vi.fn();
+    const transport = new ReadestReplicaSyncAdapter({
+      getContext: () => ({ manager: { pullMany, flush } }) as unknown as ReplicaSyncContext,
+      getUserId: async () => 'user-a',
+    });
+    try {
+      await expect(transport.push([record])).rejects.toThrow('Learning sync is disabled');
+      await expect(transport.pull(['learning.lexicon'])).rejects.toThrow('Learning sync is disabled');
+      expect(await transport.status()).toBe('disabled');
+      expect(pullMany).not.toHaveBeenCalled();
+      expect(flush).not.toHaveBeenCalled();
+    } finally {
+      useSettingsStore.setState({ settings: previous });
+    }
+  });
+
   it('maps domain categories centrally and requires payload encryption', () => {
     const adapter = createLearningReplicaAdapter('learning.lexicon');
     expect(adapter.kind).toBe('learning_lexicon');

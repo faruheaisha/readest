@@ -54,7 +54,7 @@ const CATEGORY_DEPENDENTS: Partial<Record<SyncCategory, readonly SyncCategory[]>
  * `syncCategories[category]` is absent) is OFF rather than the global
  * "missing key → on" default.
  *
- * `credentials` is the only such category today: it gates the
+ * `credentials` gates the
  * encrypted-credential fields (OPDS username/password, kosync.username
  * / .userkey / .password, readwise.accessToken, hardcover.accessToken)
  * across the OPDS-catalog and bundled-settings replicas. Sync of those
@@ -62,7 +62,13 @@ const CATEGORY_DEPENDENTS: Partial<Record<SyncCategory, readonly SyncCategory[]>
  * panel keep their credentials local-only and never see the
  * sync-passphrase dialog.
  */
-const DEFAULT_OFF_CATEGORIES: ReadonlySet<SyncCategory> = new Set(['credentials']);
+const DEFAULT_OFF_CATEGORIES: ReadonlySet<SyncCategory> = new Set(['credentials', 'learning']);
+
+/** Shared preference semantics for UI and transport, before provider gating. */
+export const getSyncCategoryPreference = (
+  category: SyncCategory,
+  preferences: Partial<Record<SyncCategory, boolean>> | undefined,
+): boolean => preferences?.[category] ?? !DEFAULT_OFF_CATEGORIES.has(category);
 
 /**
  * Map a callsite identifier (replica kind, legacy SyncType, etc.) to
@@ -84,11 +90,7 @@ const toCategory = (id: string): SyncCategory | null => {
 
 const isCategoryRawEnabled = (category: SyncCategory): boolean => {
   const settings = useSettingsStore.getState().settings;
-  const defaultOn = !DEFAULT_OFF_CATEGORIES.has(category);
-  if (!settings) return defaultOn;
-  const value = settings.syncCategories?.[category];
-  if (value === undefined) return defaultOn;
-  return value !== false;
+  return getSyncCategoryPreference(category, settings?.syncCategories);
 };
 
 /**

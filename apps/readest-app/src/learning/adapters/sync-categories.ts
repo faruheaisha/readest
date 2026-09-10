@@ -363,7 +363,7 @@ export class LearningEventSyncCategoryAdapter implements LearningSyncCategoryPor
         continue;
       }
       const event = await this.remapEvent(payload.event, payload.learningObject);
-      await this.events.publish(event);
+      await this.events.publish(event, { origin: 'sync' });
       knownIds.add(event.id);
       applied += 1;
     }

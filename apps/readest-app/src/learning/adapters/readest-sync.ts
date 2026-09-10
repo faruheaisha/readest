@@ -9,6 +9,7 @@ import { getReplicaSync } from '@/services/sync/replicaSync';
 import { getReplicaAdapter, registerReplicaAdapter } from '@/services/sync/replicaRegistry';
 import { learningReplicaAdapters } from '@/services/sync/adapters/learning';
 import { LEARNING_REPLICA_KINDS } from '@/services/sync/learningReplicaKinds';
+import { isSyncCategoryEnabled } from '@/services/sync/syncCategories';
 import type { ReplicaSyncContext } from '@/services/sync/replicaSync';
 import type { ReplicaAdapter } from '@/services/sync/replicaRegistry';
 import type { ReplicaRow } from '@/types/replica';
@@ -53,6 +54,7 @@ export class ReadestReplicaSyncAdapter implements LearningSyncTransportPort {
     this.currentStatus = 'syncing';
     try {
       for (const record of records) {
+        this.requireEnabled();
         await publishReplicaUpsert(
           LEARNING_REPLICA_KINDS[record.category],
           record,
@@ -77,6 +79,7 @@ export class ReadestReplicaSyncAdapter implements LearningSyncTransportPort {
       // Full pull is intentional for explicit learning sync. Category apply is
       // idempotent, and this recovers from cursor-advanced/apply-failed gaps.
       const rowsByKind = await context.manager.pullMany(kinds, { since: null });
+      this.requireEnabled();
       const records: LearningSyncRecord[] = [];
       for (const category of categories) {
         const kind = LEARNING_REPLICA_KINDS[category];
@@ -90,6 +93,7 @@ export class ReadestReplicaSyncAdapter implements LearningSyncTransportPort {
           if (!isReplicaRowAlive(sourceRow)) continue;
           const row = structuredClone(sourceRow);
           await this.decryptRequiredPayload(row, adapter);
+          this.requireEnabled();
           const record = adapter.unpackRow(row, '');
           if (!record) {
             throw new Error(`Encrypted learning payload is unavailable for "${kind}"`);
@@ -109,6 +113,7 @@ export class ReadestReplicaSyncAdapter implements LearningSyncTransportPort {
   }
 
   async status(): Promise<LearningSyncStatus> {
+    if (!isSyncCategoryEnabled('learning')) return 'disabled';
     if (!this.getContext() || !(await this.getUserId())) return 'disabled';
     return this.currentStatus;
   }
@@ -122,12 +127,21 @@ export class ReadestReplicaSyncAdapter implements LearningSyncTransportPort {
     return context;
   }
 
+  private requireEnabled(): void {
+    if (!isSyncCategoryEnabled('learning')) {
+      this.currentStatus = 'disabled';
+      throw new Error('Learning sync is disabled');
+    }
+  }
+
   private async requireAuthenticatedContext(): Promise<ReplicaSyncContext> {
+    this.requireEnabled();
     const context = this.requireContext();
     if (!(await this.getUserId())) {
       this.currentStatus = 'disabled';
       throw new Error('Readest replica sync requires an authenticated account');
     }
+    this.requireEnabled();
     return context;
   }
 

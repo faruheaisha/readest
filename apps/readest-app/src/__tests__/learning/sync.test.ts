@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { LearningEventRuntimeAdapter } from '@/learning/adapters/learning-events';
+import { EventRuntime } from '@/learning/kernel';
 import {
   InMemoryActivityAdapter,
   InMemoryLearningEventAdapter,
@@ -57,6 +59,28 @@ const createRuntimeParts = (idPrefix = 'id') => {
 };
 
 describe('learning sync', () => {
+  it('persists imported learning facts without broadcasting them as new local activity', async () => {
+    const source = createRuntimeParts('source');
+    await source.orchestrator.saveSelection(selection('Synapse', 'paper'), 'word');
+    const target = createRuntimeParts('target');
+    await new LexiconSyncCategoryAdapter(target.lexicon).apply(
+      await new LexiconSyncCategoryAdapter(source.lexicon).collect(),
+    );
+    const runtime = new EventRuntime();
+    const onLocalActivity = vi.fn();
+    runtime.subscribe('learning_object_saved', onLocalActivity);
+    const events = new LearningEventRuntimeAdapter(target.events, runtime);
+    const importer = new LearningEventSyncCategoryAdapter(target.lexicon, target.memory, events);
+    const records = await new LearningEventSyncCategoryAdapter(
+      source.lexicon, source.memory, source.events,
+    ).collect();
+    await importer.apply(records);
+    expect(await target.events.list()).toHaveLength(1);
+    expect(onLocalActivity).not.toHaveBeenCalled();
+    await events.publish({ ...(await target.events.list())[0]!, id: 'new-local-event' });
+    expect(onLocalActivity).toHaveBeenCalledTimes(1);
+  });
+
   it('orders dependencies, converges canonical ids, and rebuilds schedules from review events', async () => {
     const source = createRuntimeParts('source');
     const saved = await source.orchestrator.saveSelection(selection('Synapse', 'paper-a'), 'word');

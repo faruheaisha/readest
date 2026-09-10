@@ -26,6 +26,15 @@ beforeEach(() => clearSettings());
 afterEach(() => clearSettings());
 
 describe('isSyncCategoryEnabled', () => {
+  test('requires explicit learning consent for every learning replica kind', () => {
+    const kinds = ['learning', 'learning_lexicon', 'learning_memory', 'learning_activity', 'learning_event'];
+    for (const kind of kinds) expect(isSyncCategoryEnabled(kind)).toBe(false);
+    setSettings({ syncCategories: { learning: true } });
+    for (const kind of kinds) expect(isSyncCategoryEnabled(kind)).toBe(true);
+    setSettings({ syncCategories: { learning: false } });
+    for (const kind of kinds) expect(isSyncCategoryEnabled(kind)).toBe(false);
+  });
+
   test('defaults to true when settings are not loaded yet', () => {
     expect(isSyncCategoryEnabled('book')).toBe(true);
     expect(isSyncCategoryEnabled('dictionary')).toBe(true);

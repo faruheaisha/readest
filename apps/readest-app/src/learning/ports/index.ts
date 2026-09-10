@@ -255,7 +255,8 @@ export interface TelemetryPort {
 }
 
 export interface LearningEventPort {
-  publish(event: LearningEvent): Promise<void>;
+  // Replicated facts persist without replaying local-action side effects.
+  publish(event: LearningEvent, options?: { origin: 'local' | 'sync' }): Promise<void>;
   list(): Promise<readonly LearningEvent[]>;
 }
 

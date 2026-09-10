@@ -13,6 +13,7 @@ import {
 import {
   SYNC_CATEGORIES,
   isSyncCategoryLocked,
+  getSyncCategoryPreference,
   type SyncCategory,
 } from '@/services/sync/syncCategories';
 import type { SystemSettings } from '@/types/settings';
@@ -98,12 +99,7 @@ export function SyncCategoriesSection() {
   if (!settings || !hydrated) return null;
 
   const enabled = (category: SyncCategory): boolean => {
-    const value = settings.syncCategories?.[category];
-    // 'credentials' is the only category that defaults OFF — sync of
-    // sensitive fields (OPDS / KOSync / Readwise / Hardcover tokens) is
-    // explicit opt-in. Every other category defaults ON when unset.
-    if (category === 'credentials') return value === true;
-    return value !== false;
+    return getSyncCategoryPreference(category, settings.syncCategories);
   };
 
   const handleToggle = (category: SyncCategory, next: boolean) => {

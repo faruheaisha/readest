@@ -25,13 +25,15 @@ Use `pnpm --filter @readest/readest-app test --run ... --maxWorkers=1 --no-file-
 
 ## Next required corrections
 
-1. Enforce explicit opt-in and category/provider gating on both direct push and direct pull. Publishing must not report success when the underlying publisher skips disabled categories.
-2. Import remote learning facts without re-emitting product telemetry. The production category currently receives the event runtime that also forwards facts to telemetry.
+1. Direct push and pull now check the existing category/provider gate before accessing the transport; disabled calls reject rather than reporting success, and status is disabled. Learning sync defaults off. UI and transport share getSyncCategoryPreference, removing duplicated defaults. Regression reproduced the former silent-success and default-on paths; 39 focused tests passed across category and sync tests. Mid-operation setting changes still need coverage.
+2. Remote learning facts now pass `origin: 'sync'` through LearningEventPort. The runtime persists them without broadcasting local-action side effects; local publication retains its existing behavior. A regression test reproduced the duplicate broadcast before the fix. The two focused sync files now pass all 11 tests. Full unit regression is pending; its running snapshot predates the additional category-gate correction.
 3. Exercise concurrent two-device reviews and canonical merges against the database implementation, including policy and seed convergence.
 4. Implement deletion/tombstone handling and export across local and remote data. Current category apply ignores deleted records; this is not a completed deletion protocol.
 5. Add the user-facing sync action and recovery/status flow after these boundaries pass verification.
 6. Obtain a successful Web build, then authenticated two-device evidence before enabling public sync.
 
 ## Recovery
+
+Latest consent corrections: 40 focused tests passed. Pull rechecks consent after network/decryption awaits and rejects responses when consent is withdrawn; push checks before each record. Already dispatched requests cannot be recalled, and queued writes need additional manager-level cancellation coverage. TypeScript/Biome passed before this final small recheck change. The earlier full-suite run overlapped edits and reported a consent-test failure against stale loaded code; it is not valid acceptance evidence. Run the full suite against a fixed checkpoint before release.
 
 Continue on `mvp/reading-learning-loop` in the Readest fork. Inspect Git status before editing. This checkpoint records partial implementation, not a deployment or a completed MVP milestone. No production migration or deployment was performed in this batch.
