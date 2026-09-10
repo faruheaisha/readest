@@ -26,6 +26,7 @@
 import { useSettingsStore } from '@/store/settingsStore';
 import { isReadestCloudEnabled } from '@/services/sync/cloudSyncProvider';
 import { SYNC_CATEGORIES, type SyncCategory } from '@/types/settings';
+import { isLearningReplicaKind } from './learningReplicaKinds';
 
 export { SYNC_CATEGORIES };
 export type { SyncCategory };
@@ -77,6 +78,7 @@ const toCategory = (id: string): SyncCategory | null => {
   if (id === 'config') return 'progress';
   if (id === 'books') return 'book';
   if (id === 'notes') return 'note';
+  if (isLearningReplicaKind(id)) return 'learning';
   return null;
 };
 
@@ -119,6 +121,7 @@ const PROVIDER_GATED_CATEGORIES: ReadonlySet<SyncCategory> = new Set([
   'book',
   'progress',
   'note',
+  'learning',
 ] as SyncCategory[]);
 
 export const isSyncCategoryEnabled = (id: string): boolean => {

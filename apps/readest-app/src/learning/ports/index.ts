@@ -11,6 +11,12 @@ import type {
   ContentItem,
   Entitlement,
   LearningEvent,
+  LearningObjectIdentity,
+  LearningSyncCategoryDescriptor,
+  LearningSyncCategoryId,
+  LearningSyncRecord,
+  LearningSyncResult,
+  LearningSyncStatus,
   LexicalGraph,
   LearningObjectKind,
   Locator,
@@ -51,7 +57,9 @@ export interface LexiconRepositoryPort {
     occurrence: Occurrence,
   ): Promise<{ learningObject: SavedLearningObject; created: boolean; occurrenceCreated: boolean }>;
   getLearningObject(id: string): Promise<SavedLearningObject | null>;
+  findLearningObject(identity: LearningObjectIdentity): Promise<SavedLearningObject | null>;
   getLexicalGraph(learningObjectId: string): Promise<LexicalGraph | null>;
+  listAll(): Promise<readonly SavedLearningObject[]>;
   listRecent(limit: number): Promise<readonly SavedLearningObject[]>;
   listOccurrences(learningObjectId: string): Promise<readonly Occurrence[]>;
 }
@@ -74,6 +82,14 @@ export interface AnnotationRepositoryPort {
 
 export interface ActivityRepositoryPort {
   getSpec(id: string): Promise<ActivitySpec | null>;
+  findSpecByLearningObject(
+    learningObjectId: string,
+    kind: ActivityKind,
+  ): Promise<ActivitySpec | null>;
+  listSpecs(): Promise<readonly ActivitySpec[]>;
+  listAttempts(
+    activityId: string,
+  ): Promise<readonly { attempt: ActivityAttempt; result: ActivityResult }[]>;
   saveSpec(spec: ActivitySpec): Promise<void>;
   saveAttempt(attempt: ActivityAttempt, result: ActivityResult): Promise<void>;
 }
@@ -91,6 +107,7 @@ export interface ActivityEnginePort {
 export interface MemoryRepositoryPort {
   getReviewItem(id: string): Promise<ReviewItem | null>;
   findReviewItemByLearningObject(learningObjectId: string): Promise<ReviewItem | null>;
+  listReviewItems(): Promise<readonly ReviewItem[]>;
   saveReviewItem(item: ReviewItem): Promise<ReviewItem>;
   appendReviewEvent(
     event: MemoryReviewEvent,
@@ -154,10 +171,24 @@ export interface ObjectStoragePort {
   delete(key: string): Promise<void>;
 }
 
+export interface LearningSyncCategoryPort {
+  readonly descriptor: LearningSyncCategoryDescriptor;
+  collect(): Promise<readonly LearningSyncRecord[]>;
+  apply(records: readonly LearningSyncRecord[]): Promise<{ applied: number; ignored: number }>;
+}
+
+/** Transport only moves opaque, already policy-approved records. */
+export interface LearningSyncTransportPort {
+  push(records: readonly LearningSyncRecord[]): Promise<void>;
+  pull(categories: readonly LearningSyncCategoryId[]): Promise<readonly LearningSyncRecord[]>;
+  status(): Promise<LearningSyncStatus>;
+}
+
 export interface SyncPort {
-  publish(categories?: readonly string[]): Promise<void>;
-  pull(categories?: readonly string[]): Promise<void>;
-  status(): Promise<'disabled' | 'idle' | 'syncing' | 'conflict' | 'error'>;
+  sync(categories?: readonly LearningSyncCategoryId[]): Promise<LearningSyncResult>;
+  publish(categories?: readonly LearningSyncCategoryId[]): Promise<number>;
+  pull(categories?: readonly LearningSyncCategoryId[]): Promise<{ pulled: number; applied: number; ignored: number }>;
+  status(): Promise<LearningSyncStatus>;
 }
 
 export interface JobPort {

@@ -33,6 +33,10 @@ describe('isAllowedKind', () => {
     expect(isAllowedKind('font')).toBe(true);
     expect(isAllowedKind('texture')).toBe(true);
     expect(isAllowedKind('opds_catalog')).toBe(true);
+    expect(isAllowedKind('learning_lexicon')).toBe(true);
+    expect(isAllowedKind('learning_memory')).toBe(true);
+    expect(isAllowedKind('learning_activity')).toBe(true);
+    expect(isAllowedKind('learning_event')).toBe(true);
   });
 
   test('rejects arbitrary strings', () => {

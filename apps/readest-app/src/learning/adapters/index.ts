@@ -1,5 +1,6 @@
 export * from './fsrs';
 export * from './in-memory';
+export * from './in-memory-sync';
 export * from './readest-database';
 export * from './readest-selection';
 export * from './activities';
@@ -12,3 +13,4 @@ export * from './action-policy';
 export * from './readest-identity';
 export * from './readest-annotation';
 export * from './feedback';
+export * from './sync-categories';

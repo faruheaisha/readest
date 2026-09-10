@@ -3,6 +3,7 @@ import { getUserID } from '@/utils/access';
 import { getReplicaAdapter } from './replicaRegistry';
 import { getReplicaSync } from './replicaSync';
 import { encryptPackedFields } from './replicaCryptoMiddleware';
+import { ensurePassphraseUnlocked } from './passphraseGate';
 import { isCredentialsSyncEnabled, isSyncCategoryEnabled } from './syncCategories';
 import type { FieldsObject, Hlc, ReplicaRow } from '@/types/replica';
 
@@ -38,18 +39,29 @@ export const publishReplicaUpsert = async <T>(
   // ciphertext is produced, no passphrase prompt fires, and nothing
   // sensitive leaves the device. Plaintext metadata in the same row
   // (catalog name/url, kosync.serverUrl, etc.) still ships.
+  const encryptionPolicy = adapter.encryptionPolicy ?? 'credentials-opt-in';
   if (
     adapter.encryptedFields &&
     adapter.encryptedFields.length > 0 &&
+    encryptionPolicy === 'credentials-opt-in' &&
     !isCredentialsSyncEnabled()
   ) {
     for (const field of adapter.encryptedFields) {
       delete packed[field];
     }
   }
+  if (adapter.encryptedFields?.length && encryptionPolicy === 'required') {
+    await ensurePassphraseUnlocked();
+  }
   // Encrypts the remaining encryptedFields in place. Locked session →
   // those fields are dropped from the push (sync without creds).
   await encryptPackedFields(packed, adapter.encryptedFields);
+  if (
+    encryptionPolicy === 'required' &&
+    adapter.encryptedFields?.some((field) => packed[field] === undefined)
+  ) {
+    throw new Error(`Required encrypted fields are unavailable for replica kind "${kind}"`);
+  }
   let fields: FieldsObject = {};
   let maxFieldHlc: Hlc | null = null;
   for (const [key, value] of Object.entries(packed)) {

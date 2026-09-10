@@ -1,6 +1,11 @@
 import type { ZodType } from 'zod';
-import type { ActionDefinition, ActivityKind, ProviderMetadata } from '../domain';
-import type { ActivityEnginePort } from '../ports';
+import type {
+  ActionDefinition,
+  ActivityKind,
+  LearningSyncCategoryId,
+  ProviderMetadata,
+} from '../domain';
+import type { ActivityEnginePort, LearningSyncCategoryPort } from '../ports';
 
 export interface CapabilityRegistration {
   owner: string;
@@ -116,5 +121,39 @@ export class ContractSchemaRegistry extends NamedRegistry<ZodType> {
 
   parse<T>(id: string, value: unknown): T {
     return this.require(id).parse(value) as T;
+  }
+}
+
+export class SyncCategoryRegistry extends NamedRegistry<LearningSyncCategoryPort> {
+  constructor() {
+    super('SyncCategoryRegistry');
+  }
+
+  registerCategory(adapter: LearningSyncCategoryPort): void {
+    if (adapter.descriptor.dependencies.includes(adapter.descriptor.id)) {
+      throw new Error(`Sync category "${adapter.descriptor.id}" cannot depend on itself`);
+    }
+    this.register(adapter.descriptor.id, adapter);
+  }
+
+  resolve(requested?: readonly LearningSyncCategoryId[]): readonly LearningSyncCategoryPort[] {
+    const ids = requested ?? this.values().map(({ descriptor }) => descriptor.id);
+    const ordered: LearningSyncCategoryPort[] = [];
+    const visiting = new Set<LearningSyncCategoryId>();
+    const visited = new Set<LearningSyncCategoryId>();
+
+    const visit = (id: LearningSyncCategoryId): void => {
+      if (visited.has(id)) return;
+      if (visiting.has(id)) throw new Error(`Sync category dependency cycle includes "${id}"`);
+      visiting.add(id);
+      const adapter = this.require(id);
+      for (const dependency of adapter.descriptor.dependencies) visit(dependency);
+      visiting.delete(id);
+      visited.add(id);
+      ordered.push(adapter);
+    };
+
+    for (const id of ids) visit(id);
+    return ordered;
   }
 }

@@ -10,6 +10,7 @@ import { DEFAULT_AI_SETTINGS } from '@/services/ai/constants';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useCustomDictionaryStore } from '@/store/customDictionaryStore';
 import { getEnabledProviders } from '@/services/dictionaries/registry';
+import { ReadestReplicaSyncAdapter } from '../adapters/readest-sync';
 import {
   CapabilityPolicyAdapter,
   createActivityEngines,
@@ -18,6 +19,10 @@ import {
   LearningEventRuntimeAdapter,
   PlatformAIProviderAdapter,
   ProviderEnforcedQuotaAdapter,
+  ActivitySyncCategoryAdapter,
+  LearningEventSyncCategoryAdapter,
+  LexiconSyncCategoryAdapter,
+  MemorySyncCategoryAdapter,
   createReadestAnnotationDocumentLoader,
   ReadestAnnotationAdapter,
   ReadestLearningDatabaseAdapter,
@@ -33,6 +38,7 @@ import {
   BetaEvidenceService,
   DictionaryLookupActionHandler,
   LearningOrchestrator,
+  LearningSyncService,
   TranslationActionHandler,
 } from '../application';
 import {
@@ -43,6 +49,7 @@ import {
   ExecutionRuntime,
   PolicyRuntime,
   ProviderRouter,
+  SyncCategoryRegistry,
   TelemetryRuntime,
 } from '../kernel';
 import { TELEMETRY_EVENT_CONTRACT_VERSION } from '../domain';
@@ -53,6 +60,7 @@ import type {
   FeedbackPort,
   IdentityPort,
   LearningEventPort,
+  SyncPort,
   TranslationProviderPort,
 } from '../ports';
 
@@ -73,6 +81,7 @@ export interface LearningRuntime {
   telemetry: TelemetryRuntime;
   identity: IdentityPort;
   feedback: FeedbackPort;
+  sync: SyncPort;
   guestId: string;
   clientSessionId: string;
 }
@@ -174,6 +183,18 @@ export const createLearningRuntime = async (
   });
   const activities = new ActivityRegistry();
   for (const engine of createActivityEngines()) activities.registerEngine(engine);
+  const scheduler = new FsrsMemorySchedulerAdapter();
+  const syncCategories = new SyncCategoryRegistry();
+  syncCategories.registerCategory(new LexiconSyncCategoryAdapter(repository));
+  syncCategories.registerCategory(new MemorySyncCategoryAdapter(repository, repository, scheduler));
+  syncCategories.registerCategory(new ActivitySyncCategoryAdapter(repository, repository));
+  syncCategories.registerCategory(
+    new LearningEventSyncCategoryAdapter(repository, repository, events),
+  );
+  const sync = new LearningSyncService({
+    categories: syncCategories,
+    transport: new ReadestReplicaSyncAdapter(),
+  });
   const actions = new ActionRegistry();
   actions.register('ai.explain', {
     id: 'ai.explain',
@@ -262,12 +283,13 @@ export const createLearningRuntime = async (
     telemetry,
     identity,
     feedback,
+    sync,
     guestId,
     clientSessionId,
     orchestrator: new LearningOrchestrator({
       lexicon: repository,
       memory: repository,
-      scheduler: new FsrsMemorySchedulerAdapter(),
+      scheduler,
       plans: repository,
       events,
       eventContext,

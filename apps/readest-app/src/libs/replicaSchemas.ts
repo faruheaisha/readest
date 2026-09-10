@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ReplicaRow } from '@/types/replica';
 import type { SyncErrorCode } from '@/libs/errors';
+import { LEARNING_REPLICA_KINDS } from '@/services/sync/learningReplicaKinds';
 
 export const MAX_JSON_BYTES = 64 * 1024;
 export const MAX_FIELD_COUNT = 64;
@@ -21,6 +22,12 @@ const cipherEnvelopeSchema = z.object({
 });
 
 const fieldEnvelopeWithCipher = z.union([fieldEnvelopeSchema, cipherEnvelopeSchema]);
+
+const encryptedFieldEnvelopeSchema = z.object({
+  v: cipherEnvelopeSchema,
+  t: z.string(),
+  s: z.string(),
+});
 
 const fieldsObjectSchema = z.record(z.string(), fieldEnvelopeWithCipher);
 
@@ -97,6 +104,10 @@ const absServerFieldsSchema = z
 // envelope shape and the 64-field / 64 KiB row caps.
 const settingsFieldsSchema = z.record(z.string(), fieldEnvelopeWithCipher);
 
+const learningFieldsSchema = z
+  .object({ payload: encryptedFieldEnvelopeSchema })
+  .strict();
+
 interface KindSpec {
   minSchemaVersion: number;
   maxSchemaVersion: number;
@@ -151,6 +162,18 @@ export const KIND_ALLOWLIST: Record<string, KindSpec> = {
     fields: settingsFieldsSchema,
     binary: false,
   },
+  ...Object.fromEntries(
+    Object.values(LEARNING_REPLICA_KINDS).map((kind) => [
+      kind,
+      {
+        minSchemaVersion: 1,
+        maxSchemaVersion: 1,
+        maxRowsPerUser: 50_000,
+        fields: learningFieldsSchema,
+        binary: false,
+      } satisfies KindSpec,
+    ]),
+  ),
 };
 
 export const isAllowedKind = (kind: string): boolean => Object.hasOwn(KIND_ALLOWLIST, kind);

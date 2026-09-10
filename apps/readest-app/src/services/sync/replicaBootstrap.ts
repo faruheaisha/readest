@@ -7,6 +7,7 @@ import { textureAdapter, TEXTURE_KIND } from './adapters/texture';
 import { opdsCatalogAdapter } from './adapters/opdsCatalog';
 import { absServerAdapter } from './adapters/absServer';
 import { settingsAdapter } from './adapters/settings';
+import { learningReplicaAdapters } from './adapters/learning';
 import { getReplicaPersistEnv } from './replicaPersist';
 import { getReplicaAdapter, registerReplicaAdapter } from './replicaRegistry';
 import { registerReplicaDownloadHandler } from './replicaTransferIntegration';
@@ -22,6 +23,9 @@ const KNOWN_ADAPTERS: ReplicaAdapter<unknown>[] = [
   absServerAdapter as unknown as ReplicaAdapter<unknown>,
   // Bundled scalar settings — singleton row, no binary.
   settingsAdapter as unknown as ReplicaAdapter<unknown>,
+  ...learningReplicaAdapters.map(
+    (adapter) => adapter as unknown as ReplicaAdapter<unknown>,
+  ),
 ];
 
 let didBootstrap = false;

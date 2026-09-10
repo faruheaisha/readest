@@ -348,6 +348,7 @@ export type SyncCategory =
   | 'opds_catalog'
   | 'abs_server'
   | 'settings'
+  | 'learning'
   | 'credentials'
   | 'stats';
 
@@ -361,6 +362,7 @@ export const SYNC_CATEGORIES: readonly SyncCategory[] = [
   'opds_catalog',
   'abs_server',
   'settings',
+  'learning',
   'stats',
   'credentials',
 ] as const;

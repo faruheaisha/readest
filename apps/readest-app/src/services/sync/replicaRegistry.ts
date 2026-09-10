@@ -45,6 +45,11 @@ export interface ReplicaAdapter<T = unknown> {
    * unpacked record so local plaintext copies are preserved.
    */
   encryptedFields?: readonly string[];
+  /**
+   * Credential fields remain an explicit opt-in. Required fields contain
+   * private domain data and must never be published without encryption.
+   */
+  encryptionPolicy?: 'credentials-opt-in' | 'required';
 }
 
 const registry = new Map<string, ReplicaAdapter<unknown>>();

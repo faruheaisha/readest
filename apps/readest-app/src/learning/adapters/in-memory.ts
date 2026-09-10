@@ -46,6 +46,33 @@ export class InMemoryActivityAdapter implements ActivityRepositoryPort {
     return this.#specs.get(id) ?? null;
   }
 
+  async findSpecByLearningObject(
+    learningObjectId: string,
+    kind: ActivitySpec['kind'],
+  ): Promise<ActivitySpec | null> {
+    return (
+      [...this.#specs.values()].find(
+        (spec) => spec.learningObjectId === learningObjectId && spec.kind === kind,
+      ) ?? null
+    );
+  }
+
+  async listSpecs(): Promise<readonly ActivitySpec[]> {
+    return [...this.#specs.values()].sort((left, right) => left.id.localeCompare(right.id));
+  }
+
+  async listAttempts(
+    activityId: string,
+  ): Promise<readonly { attempt: ActivityAttempt; result: ActivityResult }[]> {
+    return [...this.#attempts.values()]
+      .filter(({ attempt }) => attempt.activityId === activityId)
+      .sort((left, right) =>
+        left.attempt.startedAt.getTime() === right.attempt.startedAt.getTime()
+          ? left.attempt.id.localeCompare(right.attempt.id)
+          : left.attempt.startedAt.getTime() - right.attempt.startedAt.getTime(),
+      );
+  }
+
   async saveSpec(spec: ActivitySpec): Promise<void> {
     this.#specs.set(spec.id, spec);
   }
@@ -157,6 +184,17 @@ export class InMemoryLexiconAdapter implements LexiconRepositoryPort {
     return this.#objects.get(id) ?? null;
   }
 
+  async findLearningObject(identity: {
+    kind: SavedLearningObject['kind'];
+    language: string;
+    normalizedText: string;
+  }): Promise<SavedLearningObject | null> {
+    const id = this.#objectIdsByKey.get(
+      `${identity.kind}\u0000${identity.language.toLowerCase()}\u0000${identity.normalizedText}`,
+    );
+    return id ? (this.#objects.get(id) ?? null) : null;
+  }
+
   async getLexicalGraph(learningObjectId: string): Promise<LexicalGraph | null> {
     return this.#graphs.get(learningObjectId) ?? null;
   }
@@ -165,6 +203,14 @@ export class InMemoryLexiconAdapter implements LexiconRepositoryPort {
     return [...this.#objects.values()]
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
       .slice(0, limit);
+  }
+
+  async listAll(): Promise<readonly SavedLearningObject[]> {
+    return [...this.#objects.values()].sort((left, right) =>
+      left.createdAt.getTime() === right.createdAt.getTime()
+        ? left.id.localeCompare(right.id)
+        : left.createdAt.getTime() - right.createdAt.getTime(),
+    );
   }
 
   async listOccurrences(learningObjectId: string): Promise<readonly Occurrence[]> {
@@ -186,6 +232,14 @@ export class InMemoryMemoryAdapter implements MemoryRepositoryPort {
   async findReviewItemByLearningObject(learningObjectId: string): Promise<ReviewItem | null> {
     const id = this.#itemIdsByLearningObject.get(learningObjectId);
     return id ? (this.#items.get(id) ?? null) : null;
+  }
+
+  async listReviewItems(): Promise<readonly ReviewItem[]> {
+    return [...this.#items.values()].sort((left, right) =>
+      left.createdAt.getTime() === right.createdAt.getTime()
+        ? left.id.localeCompare(right.id)
+        : left.createdAt.getTime() - right.createdAt.getTime(),
+    );
   }
 
   async saveReviewItem(item: ReviewItem): Promise<ReviewItem> {

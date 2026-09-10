@@ -43,6 +43,20 @@ interface ActivitySpecRow {
   [key: string]: unknown;
 }
 
+interface ActivityAttemptRow {
+  id: string;
+  activity_id: string;
+  learning_object_id: string;
+  response: string;
+  started_at: number;
+  completed_at: number | null;
+  correct: number;
+  score: number;
+  duration_ms: number;
+  result_completed_at: number;
+  [key: string]: unknown;
+}
+
 interface ArtifactRow {
   cache_key: string;
   id: string;
@@ -554,6 +568,19 @@ export class ReadestLearningDatabaseAdapter
     return rows[0] ? toLearningObject(rows[0]) : null;
   }
 
+  async findLearningObject(identity: {
+    kind: SavedLearningObject['kind'];
+    language: string;
+    normalizedText: string;
+  }): Promise<SavedLearningObject | null> {
+    const rows = await this.db.select<LearningObjectRow>(
+      `SELECT * FROM learning_objects
+       WHERE kind = ? AND language = ? AND normalized_text = ?`,
+      [identity.kind, identity.language, identity.normalizedText],
+    );
+    return rows[0] ? toLearningObject(rows[0]) : null;
+  }
+
   async getLexicalGraph(learningObjectId: string): Promise<LexicalGraph | null> {
     const learningObject = await this.getLearningObject(learningObjectId);
     if (!learningObject) return null;
@@ -602,6 +629,13 @@ export class ReadestLearningDatabaseAdapter
     return rows.map(toLearningObject);
   }
 
+  async listAll(): Promise<readonly SavedLearningObject[]> {
+    const rows = await this.db.select<LearningObjectRow>(
+      'SELECT * FROM learning_objects ORDER BY created_at, id',
+    );
+    return rows.map(toLearningObject);
+  }
+
   async listOccurrences(learningObjectId: string): Promise<readonly Occurrence[]> {
     const rows = await this.db.select<OccurrenceRow>(
       'SELECT * FROM learning_occurrences WHERE learning_object_id = ? ORDER BY created_at',
@@ -627,6 +661,77 @@ export class ReadestLearningDatabaseAdapter
         ? { sourceLocator: locatorSchema.parse(JSON.parse(row.source_locator_json)) }
         : {}),
     };
+  }
+
+  async findSpecByLearningObject(
+    learningObjectId: string,
+    kind: ActivitySpec['kind'],
+  ): Promise<ActivitySpec | null> {
+    const rows = await this.db.select<ActivitySpecRow>(
+      `SELECT * FROM learning_activity_specs
+       WHERE learning_object_id = ? AND kind = ?
+       ORDER BY id LIMIT 1`,
+      [learningObjectId, kind],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      kind: row.kind,
+      learningObjectId: row.learning_object_id,
+      prompt: row.prompt,
+      answer: row.answer,
+      ...(row.source_locator_json
+        ? { sourceLocator: locatorSchema.parse(JSON.parse(row.source_locator_json)) }
+        : {}),
+    };
+  }
+
+  async listSpecs(): Promise<readonly ActivitySpec[]> {
+    const rows = await this.db.select<ActivitySpecRow>(
+      'SELECT * FROM learning_activity_specs ORDER BY id',
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      learningObjectId: row.learning_object_id,
+      prompt: row.prompt,
+      answer: row.answer,
+      ...(row.source_locator_json
+        ? { sourceLocator: locatorSchema.parse(JSON.parse(row.source_locator_json)) }
+        : {}),
+    }));
+  }
+
+  async listAttempts(
+    activityId: string,
+  ): Promise<readonly { attempt: ActivityAttempt; result: ActivityResult }[]> {
+    const rows = await this.db.select<ActivityAttemptRow>(
+      `SELECT a.*, r.correct, r.score, r.duration_ms,
+              r.completed_at AS result_completed_at
+       FROM learning_activity_attempts a
+       JOIN learning_activity_results r ON r.attempt_id = a.id
+       WHERE a.activity_id = ?
+       ORDER BY a.started_at, a.id`,
+      [activityId],
+    );
+    return rows.map((row) => ({
+      attempt: {
+        id: row.id,
+        activityId: row.activity_id,
+        learningObjectId: row.learning_object_id,
+        response: row.response,
+        startedAt: new Date(row.started_at),
+        ...(row.completed_at === null ? {} : { completedAt: new Date(row.completed_at) }),
+      },
+      result: {
+        attemptId: row.id,
+        correct: row.correct === 1,
+        score: row.score,
+        durationMs: row.duration_ms,
+        completedAt: new Date(row.result_completed_at),
+      },
+    }));
   }
 
   async saveSpec(spec: ActivitySpec): Promise<void> {
@@ -699,6 +804,13 @@ export class ReadestLearningDatabaseAdapter
       [learningObjectId],
     );
     return rows[0] ? toReviewItem(rows[0]) : null;
+  }
+
+  async listReviewItems(): Promise<readonly ReviewItem[]> {
+    const rows = await this.db.select<ReviewItemRow>(
+      'SELECT * FROM learning_review_items ORDER BY created_at, id',
+    );
+    return rows.map(toReviewItem);
   }
 
   saveReviewItem(item: ReviewItem): Promise<ReviewItem> {

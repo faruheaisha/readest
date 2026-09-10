@@ -63,6 +63,12 @@ const useCategoryCopy = (): Record<SyncCategory, CategoryCopy> => {
       title: _('App settings'),
       description: _('Theme, highlight colours, and integrations (KOSync, Readwise, Hardcover)'),
     },
+    learning: {
+      title: _('Learning data'),
+      description: _(
+        'Saved vocabulary, practice attempts, and review history (end-to-end encrypted)',
+      ),
+    },
     credentials: {
       title: _('Credentials'),
       description: _(
@@ -137,6 +143,7 @@ export function SyncCategoriesSection() {
             !readestEnabled &&
             backends.length > 0 &&
             (category === 'book' || category === 'progress' || category === 'note');
+          const pausedWithoutReadestCloud = !readestEnabled && category === 'learning';
           return (
             <li key={category} className='flex items-center justify-between gap-4 px-4 py-3'>
               <div className='flex flex-col gap-0.5'>
@@ -146,6 +153,8 @@ export function SyncCategoriesSection() {
                     ? _('Managed by {{provider}} while it is your cloud sync provider', {
                         provider: cloudProviderName,
                       })
+                    : pausedWithoutReadestCloud
+                      ? _('Paused until Readest Cloud is enabled')
                     : locked
                       ? _('Required while Dictionaries sync is enabled')
                       : c.description}

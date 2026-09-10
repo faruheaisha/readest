@@ -41,6 +41,8 @@ This document reports implemented evidence, migration gaps, and release gates. I
 
 ## Correction queue
 
+The current sync implementation and its outstanding release blockers are recorded in [SYNC_CHECKPOINT.md](./SYNC_CHECKPOINT.md). Its newer validation status supersedes the earlier successful build evidence below for the current working changes.
+
 These corrections have higher priority than adding new feature areas:
 
 1. **Sync and data control:** add learning replica categories, conflict policies, export, deletion, and locator re-anchoring.

@@ -55,6 +55,7 @@ describe('isSyncCategoryEnabled', () => {
       expect(isSyncCategoryEnabled('book')).toBe(false);
       expect(isSyncCategoryEnabled('progress')).toBe(false);
       expect(isSyncCategoryEnabled('note')).toBe(false);
+      expect(isSyncCategoryEnabled('learning_lexicon')).toBe(false);
     });
 
     test('legacy plural/singular aliases are gated too', () => {
@@ -223,7 +224,7 @@ describe('isSyncCategoryEnabled', () => {
 });
 
 describe('SYNC_CATEGORIES', () => {
-  test('covers all eleven user-facing categories (incl. settings + stats + credentials)', () => {
+  test('covers all twelve user-facing categories including encrypted learning data', () => {
     expect([...SYNC_CATEGORIES].sort()).toEqual(
       [
         'abs_server',
@@ -231,6 +232,7 @@ describe('SYNC_CATEGORIES', () => {
         'credentials',
         'dictionary',
         'font',
+        'learning',
         'note',
         'opds_catalog',
         'progress',
